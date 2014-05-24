@@ -36,18 +36,18 @@ var r1 = test("JSON", JSON.parse, big);
 
 var r2 = test("I-JSON single chunk", function(data) {
 	var parser = ijson.createParser();
-	parser.update(big);
+	parser.update(data);
 	return parser.result();
 }, big);
 
 var r3 = test("I-JSON multiple chunks", function(data) {
 	var parser = ijson.createParser();
 	var pos = 0;
-	var len = big.length;
+	var len = data.length;
 	while (pos < len) {
 		var l = Math.floor(Math.random() * 1024) + 1;
 		if (pos + l > len) l = len - pos;
-		parser.update(big.substring(pos, pos + l));
+		parser.update(data.substring(pos, pos + l));
 		pos += l;
 	}
 	return parser.result();
@@ -55,3 +55,20 @@ var r3 = test("I-JSON multiple chunks", function(data) {
 
 check(r1, r2);
 check(r1, r3);
+
+try {
+	var jsonparse = require('jsonparse');
+	var r4 = test("jsonparse single chunk", function(data) {
+		var parser = new jsonparse();
+		var result;
+		parser.onValue = function(value) {
+			if (this.stack.length === 0) result = value;
+		}
+		parser.write(data);
+		return result;
+	}, big);
+	check(r1, r4);
+} catch (ex) {
+	console.log("cannot test jsonparse: " + ex.message);
+}
+ 
