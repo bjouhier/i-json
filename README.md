@@ -9,7 +9,7 @@ See https://github.com/joyent/node/issues/7543#issuecomment-43974821 for backgro
 ```javascript
 var ijson = require('i-json');
 
-var parser = ijson.creatParser();
+var parser = ijson.createParser();
 
 // update the parser with the next piece of JSON text.
 // This call will typically be issued from a 'data' event handler
