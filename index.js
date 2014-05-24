@@ -291,20 +291,23 @@ function Parser() {
 	this.state = BEFORE_VALUE;
 }
 
-Parser.prototype.update = function(str) {
-	this.source = str;
+function parse(parser, str, state) {
 	var pos = 0,
-		len = str.length,
-		state = this.state;
+		len = str.length;
 	while (pos < len) {
 		var ch = str.charCodeAt(pos);
 		var cla = (ch < 0x80) ? classes[ch] : lastClass;
 		var fn = state[cla];
 		//if (fn === error) console.log("ch=" + str[pos] + ", cla=" + cla, state)
-		if (fn !== null) state = fn(this, pos, cla, state);
+		if (fn !== null) state = fn(parser, pos, cla, state);
 		pos++;
 	}
-	this.state = state;
+	return state;	
+}
+
+Parser.prototype.update = function(str) {
+	this.source = str;
+	this.state = parse(this, str, this.state);
 	if (this.beg !== -1) {
 		this.keep += this.source.substring(this.beg);
 		this.beg = 0;
