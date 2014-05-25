@@ -2,7 +2,7 @@
 var fs = require('fs');
 var ijson = require('../index');
 
-var big = '[' + fs.readFileSync(__dirname + '/big.json') + ']';
+var big = fs.readFileSync(__dirname + '/big.json');
 var ITER = 10;
 
 function test(msg, fn, data) {
@@ -51,7 +51,7 @@ for (var pass = 1; pass <= 3; pass++) {
 		while (pos < len) {
 			var l = Math.floor(Math.random() * 1024) + 1;
 			if (pos + l > len) l = len - pos;
-			parser.update(data.substring(pos, pos + l));
+			parser.update(data.slice(pos, pos + l));
 			pos += l;
 		}
 		return parser.result();
@@ -69,7 +69,7 @@ for (var pass = 1; pass <= 3; pass++) {
 			}
 			parser.write(data);
 			return result;
-		}, big);
+		}, big.toString('utf8'));
 		check(r1, r4);
 	} catch (ex) {
 		console.log("skipping jsonparse test: " + ex.message);
@@ -80,7 +80,7 @@ for (var pass = 1; pass <= 3; pass++) {
 		var r5 = test("clarinet single chunk", function(data) {
 			var parser = new clarinet.parser();
 			parser.write(data).close();
-		}, big);
+		}, big.toString('utf8'));
 		console.log("clarinet does not materialize result, time is for parsing only");
 		//check(r1, r5);
 	} catch (ex) {

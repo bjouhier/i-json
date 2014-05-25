@@ -84,14 +84,17 @@ function literalOpen(val) {
 }
 
 function escapeOpen(parser, pos) {
-	parser.keep += parser.source.substring(parser.beg, pos);
+	parser.keep.push(parser.source.slice(parser.beg, pos));
 	parser.beg = -1;
 	return AFTER_ESCAPE;
 }
 
 function escapeLetter(ch) {
+	var b = ch.charCodeAt(0);
 	return function(parser, pos) {
-		parser.keep += ch;
+		var buf = new Buffer(1);
+		buf[0] = b;
+		parser.keep.push(buf);
 		parser.beg = pos + 1;
 		return INSIDE_QUOTES;
 	}
@@ -206,11 +209,11 @@ function expOpen(parser, pos) {
 }
 
 function numberClose(parser, pos, cla) {
-	var str = parser.source.substring(parser.beg, pos);
+	var str = parser.source.toString('utf8', parser.beg, pos);
 	parser.beg = -1;
 	if (parser.keep.length !== 0) {
-		str = parser.keep + str;
-		parser.keep = "";		
+		str = Buffer.concat(parser.keep).toString('utf8') + str;
+		parser.keep = [];		
 	}
 	parser.frame.setValue(parser.isDouble ? parseFloat(str) : parseInt(str, 10));
 	var fn = AFTER_VALUE[cla];
@@ -223,11 +226,11 @@ function stringOpen(parser, pos) {
 }
 
 function stringClose(parser, pos) {
-	var val = parser.source.substring(parser.beg, pos);
+	var val = parser.source.toString('utf8', parser.beg, pos);
 	parser.beg = -1;
 	if (parser.keep.length !== 0) {
-		val = parser.keep + val;
-		parser.keep = "";
+		val = Buffer.concat(parser.keep).toString('utf8') + val;
+		parser.keep = [];
 	}
 	var frame = parser.frame;
 	if (frame.key === null && !frame.isArray) {
@@ -279,13 +282,13 @@ function eatNL(parser, pos, cla, state) {
 }
 
 function error(parser, pos) {
-	throw new Error("JSON syntax error line " + parser.line + ", near " + parser.source.substring(pos, pos + 10));
+	throw new Error("JSON syntax error line " + parser.line + ", near " + parser.source.toString('utf8', pos, pos + 10));
 }
 
 function Parser() {
 	this.frame = new Frame([], null, null, true);
 	this.line = 1;
-	this.keep = "";
+	this.keep = [];
 	this.isDouble = false;
 	this.beg = -1;
 	this.state = BEFORE_VALUE;
@@ -295,7 +298,7 @@ function parse(parser, str, state) {
 	var pos = 0,
 		len = str.length;
 	while (pos < len) {
-		var ch = str.charCodeAt(pos);
+		var ch = str[pos];
 		var cla = (ch < 0x80) ? classes[ch] : lastClass;
 		var fn = state[cla];
 		//if (fn === error) console.log("ch=" + str[pos] + ", cla=" + cla, state)
@@ -309,7 +312,7 @@ Parser.prototype.update = function(str) {
 	this.source = str;
 	this.state = parse(this, str, this.state);
 	if (this.beg !== -1) {
-		this.keep += this.source.substring(this.beg);
+		this.keep.push(this.source.slice(this.beg));
 		this.beg = 0;
 	}
 }
