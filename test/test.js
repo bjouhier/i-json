@@ -32,43 +32,58 @@ function check(r1, r2) {
 	}
 }
 
-var r1 = test("JSON", JSON.parse, big);
+for (var pass = 1; pass <= 3; pass++) {
+	console.log("*** PASS " + pass + " ***");
+	var r1 = test("JSON", JSON.parse, big);
 
-var r2 = test("I-JSON single chunk", function(data) {
-	var parser = ijson.createParser();
-	parser.update(data);
-	return parser.result();
-}, big);
-
-var r3 = test("I-JSON multiple chunks", function(data) {
-	var parser = ijson.createParser();
-	var pos = 0;
-	var len = data.length;
-	while (pos < len) {
-		var l = Math.floor(Math.random() * 1024) + 1;
-		if (pos + l > len) l = len - pos;
-		parser.update(data.substring(pos, pos + l));
-		pos += l;
-	}
-	return parser.result();
-}, big);
-
-check(r1, r2);
-check(r1, r3);
-
-try {
-	var jsonparse = require('jsonparse');
-	var r4 = test("jsonparse single chunk", function(data) {
-		var parser = new jsonparse();
-		var result;
-		parser.onValue = function(value) {
-			if (this.stack.length === 0) result = value;
-		}
-		parser.write(data);
-		return result;
+	var r2 = test("I-JSON single chunk", function(data) {
+		var parser = ijson.createParser();
+		parser.update(data);
+		return parser.result();
 	}, big);
-	check(r1, r4);
-} catch (ex) {
-	console.log("cannot test jsonparse: " + ex.message);
+
+	check(r1, r2);
+
+	var r3 = test("I-JSON multiple chunks", function(data) {
+		var parser = ijson.createParser();
+		var pos = 0;
+		var len = data.length;
+		while (pos < len) {
+			var l = Math.floor(Math.random() * 1024) + 1;
+			if (pos + l > len) l = len - pos;
+			parser.update(data.substring(pos, pos + l));
+			pos += l;
+		}
+		return parser.result();
+	}, big);
+
+	check(r1, r3);
+
+	try {
+		var jsonparse = require('jsonparse');
+		var r4 = test("jsonparse single chunk", function(data) {
+			var parser = new jsonparse();
+			var result;
+			parser.onValue = function(value) {
+				if (this.stack.length === 0) result = value;
+			}
+			parser.write(data);
+			return result;
+		}, big);
+		check(r1, r4);
+	} catch (ex) {
+		console.log("skipping jsonparse test: " + ex.message);
+	}
+
+	try {
+		var clarinet = require('clarinet');
+		var r5 = test("clarinet single chunk", function(data) {
+			var parser = new clarinet.parser();
+			parser.write(data).close();
+		}, big);
+		console.log("clarinet does not materialize result, time is for parsing only");
+		//check(r1, r5);
+	} catch (ex) {
+		console.log("skipping clarinet test: " + ex.message);
+	}
 }
- 
