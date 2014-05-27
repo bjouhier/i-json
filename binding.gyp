@@ -8,7 +8,7 @@
 			'sources': [
 				'src/ijson.cc',
 			],
-			'cflags!': ['-ansi'],
+			'cflags!': ['-ansi' '-O3'],
 		},
 	],
 }

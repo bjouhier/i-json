@@ -5,7 +5,6 @@
 "use strict";
 
 var nat = require('./build/Release/ijson_native');
-console.log(nat);
 exports.createParser = function() { 
 	var p = new nat.Parser(); 
 	return p; 

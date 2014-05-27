@@ -167,29 +167,29 @@ namespace ijson {
     NU_LL,
     NUL_L;
 
-  void escapeOpen(Parser* parser, int pos, int cla) {
+  static void inline escapeOpen(Parser* parser, int pos, int cla) {
     parser->keep.insert(parser->keep.end(), parser->data + parser->beg, parser->data + pos);
     parser->beg = -1;
     parser->state = AFTER_ESCAPE;
   }
 
-  void numberOpen(Parser* parser, int pos, int cla) {
+  static void inline numberOpen(Parser* parser, int pos, int cla) {
     parser->isDouble = false;
     parser->beg = pos;
     parser->state = INSIDE_NUMBER;
   }
 
-  void doubleOpen(Parser* parser, int pos, int cla) {
+  static void inline doubleOpen(Parser* parser, int pos, int cla) {
     parser->isDouble = true;
     parser->state = INSIDE_DOUBLE;
   }
 
-  void expOpen(Parser* parser, int pos, int cla) {
+  static void inline expOpen(Parser* parser, int pos, int cla) {
     parser->isDouble = true;
     parser->state = INSIDE_EXP;
   }
 
-  void numberClose(Parser* parser, int pos, int cla) {
+  static void inline numberClose(Parser* parser, int pos, int cla) {
     int beg = parser->beg;
     parser->beg = -1;
     char* p = parser->data + beg;
@@ -208,12 +208,12 @@ namespace ijson {
     else parser->state = AFTER_VALUE;
   }
 
-  void stringOpen(Parser* parser, int pos, int cla) {
+  static void inline stringOpen(Parser* parser, int pos, int cla) {
     parser->beg = pos + 1;
     parser->state = INSIDE_QUOTES;
   }
 
-  void stringClose(Parser* parser, int pos, int cla) {
+  static void inline stringClose(Parser* parser, int pos, int cla) {
     char* p = parser->data + parser->beg;
     int len = pos - parser->beg;
     parser->beg = -1;
@@ -236,92 +236,92 @@ namespace ijson {
     parser->keep.clear();
   }
 
-  void escapeR(Parser* parser, int pos, int cla) {
+  static void inline escapeR(Parser* parser, int pos, int cla) {
     parser->keep.push_back('\r');
     parser->beg = pos + 1;
     parser->state = INSIDE_QUOTES;
   }
 
-  void escapeN(Parser* parser, int pos, int cla) {
+  static void inline escapeN(Parser* parser, int pos, int cla) {
     parser->keep.push_back('\n');
     parser->beg = pos + 1;
     parser->state = INSIDE_QUOTES;
   }
 
-  void escapeT(Parser* parser, int pos, int cla) {
+  static void inline escapeT(Parser* parser, int pos, int cla) {
     parser->keep.push_back('\t');
     parser->beg = pos + 1;
     parser->state = INSIDE_QUOTES;
   }
 
-  void escapeDQUOTE(Parser* parser, int pos, int cla) {
+  static void inline escapeDQUOTE(Parser* parser, int pos, int cla) {
     parser->keep.push_back('"');
     parser->beg = pos + 1;
     parser->state = INSIDE_QUOTES;
   }
 
-  void escapeBSLASH(Parser* parser, int pos, int cla) {
+  static void inline escapeBSLASH(Parser* parser, int pos, int cla) {
     parser->keep.push_back('\\');
     parser->beg = pos + 1;
     parser->state = INSIDE_QUOTES;
   }
 
-  void t_rue(Parser* parser, int pos, int cla) {
+  static void inline t_rue(Parser* parser, int pos, int cla) {
     parser->state = T_RUE;
   }
 
-  void tr_ue(Parser* parser, int pos, int cla) {
+  static void inline tr_ue(Parser* parser, int pos, int cla) {
     parser->state = TR_UE;
   }
 
-  void tru_e(Parser* parser, int pos, int cla) {
+  static void inline tru_e(Parser* parser, int pos, int cla) {
     parser->state = TRU_E;
   }
 
-  void true_(Parser* parser, int pos, int cla) {
+  static void inline true_(Parser* parser, int pos, int cla) {
     parser->frame->setValue(Local<Value>::New(True()));
     parser->state = AFTER_VALUE;
   }
 
-  void f_alse(Parser* parser, int pos, int cla) {
+  static void inline f_alse(Parser* parser, int pos, int cla) {
     parser->state = F_ALSE;
   }
 
-  void fa_lse(Parser* parser, int pos, int cla) {
+  static void inline fa_lse(Parser* parser, int pos, int cla) {
     parser->state = FA_LSE;
   }
 
-  void fal_se(Parser* parser, int pos, int cla) {
+  static void inline fal_se(Parser* parser, int pos, int cla) {
     parser->state = FAL_SE;
   }
 
-  void fals_e(Parser* parser, int pos, int cla) {
+  static void inline fals_e(Parser* parser, int pos, int cla) {
     parser->state = FALS_E;
   }
 
-  void false_(Parser* parser, int pos, int cla) {
+  static void inline false_(Parser* parser, int pos, int cla) {
     parser->frame->setValue(Local<Value>::New(False()));
     parser->state = AFTER_VALUE;
   }
 
-  void n_ull(Parser* parser, int pos, int cla) {
+  static void inline n_ull(Parser* parser, int pos, int cla) {
     parser->state = N_ULL;
   }
 
-  void nu_ll(Parser* parser, int pos, int cla) {
+  static void inline nu_ll(Parser* parser, int pos, int cla) {
     parser->state = NU_LL;
   }
 
-  void nul_l(Parser* parser, int pos, int cla) {
+  static void inline nul_l(Parser* parser, int pos, int cla) {
     parser->state = NUL_L;
   }
 
-  void null_(Parser* parser, int pos, int cla) {
+  static void inline null_(Parser* parser, int pos, int cla) {
     parser->frame->setValue(Local<Value>::New(Null()));
     parser->state = AFTER_VALUE;
   }
 
-  void arrayOpen(Parser* parser, int pos, int cla) {
+  static void inline arrayOpen(Parser* parser, int pos, int cla) {
     Frame* frame = parser->frame->next;
     if (frame == NULL) frame = new Frame(parser->frame, true);
     parser->frame = frame;
@@ -331,7 +331,7 @@ namespace ijson {
     parser->state = BEFORE_VALUE;
   }
 
-  void arrayClose(Parser* parser, int pos, int cla) {
+  static void inline arrayClose(Parser* parser, int pos, int cla) {
     Local<Value> val = *parser->frame->value;
     parser->frame = parser->frame->prev;
     if (parser->frame == NULL) { printf("BAD ARRAY CLOSE\n"); exit(1); }
@@ -339,7 +339,7 @@ namespace ijson {
     parser->state = AFTER_VALUE;
   }
 
-  void objectOpen(Parser* parser, int pos, int cla) {
+  static void inline objectOpen(Parser* parser, int pos, int cla) {
     Frame* frame = parser->frame->next;
     if (frame == NULL) frame = new Frame(parser->frame, true);
     parser->frame = frame;
@@ -349,7 +349,7 @@ namespace ijson {
     parser->state = BEFORE_KEY;
   }
 
-  void objectClose(Parser* parser, int pos, int cla) {
+  static void inline objectClose(Parser* parser, int pos, int cla) {
     Local<Value> val = *parser->frame->value;
     parser->frame = parser->frame->prev;
     if (parser->frame == NULL) { printf("BAD OBJECT CLOSE\n"); exit(1); }
@@ -357,11 +357,11 @@ namespace ijson {
     parser->state = AFTER_VALUE;
   }
 
-  void eatColon(Parser* parser, int pos, int cla) {
+  static void inline eatColon(Parser* parser, int pos, int cla) {
     parser->state = BEFORE_VALUE;
   }
 
-  void eatComma(Parser* parser, int pos, int cla) {
+  static void inline eatComma(Parser* parser, int pos, int cla) {
     Frame* frame = parser->frame;
     if (frame->isArray) {
       parser->state = BEFORE_VALUE;
@@ -371,11 +371,11 @@ namespace ijson {
     }
   }
 
-  void eatNL(Parser* parser, int pos, int cla) {
+  static void inline eatNL(Parser* parser, int pos, int cla) {
     parser->line++;
   }
 
-  void error(Parser* parser, int pos, int cla) {
+  static void inline error(Parser* parser, int pos, int cla) {
     parser->error = true;
   }
 
