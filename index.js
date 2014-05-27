@@ -4,6 +4,14 @@
  */
 "use strict";
 
+var nat = require('./build/Release/ijson_native');
+console.log(nat);
+exports.createParser = function() { 
+	var p = new nat.Parser(); 
+	return p; 
+};
+return;
+
 var classes = [];
 var lastClass = 0;
 
@@ -152,6 +160,7 @@ var AFTER_ESCAPE = makeState([
 	[r_, escapeLetter('\r')],
 	[t_, escapeLetter('\t')],
 	[DQUOTE, escapeLetter('\"')],
+	[BSLASH, escapeLetter('\\')],
 	[u_, escapeUnicode]
 ], error);
 
