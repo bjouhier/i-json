@@ -54,7 +54,9 @@ namespace ijson {
       if (this->value) delete this->value;
       if (this->key) delete this->key;
     }
-    Persistent<Value> persistent;
+    // Local values are faster but we cannot keep them across calls.
+    // So we back them with persistent slots.
+    Persistent<Value> pvalue;
     Persistent<String> pkey;
     Local<Value>* value;
     Local<String>* key;
@@ -562,13 +564,13 @@ namespace ijson {
 
     for (Frame* f = parser->frame; f; f = f->prev) {
       f->value = new Local<Value>();
-      *f->value = Local<Value>::New(uni::Deref(f->persistent));
+      *f->value = Local<Value>::New(uni::Deref(f->pvalue));
       f->key = new Local<String>();
       *f->key = Local<String>::New(uni::Deref(f->pkey));
     }
     int pos = parse(parser, data, len);
     for (Frame* f = parser->frame; f; f = f->prev) {
-      f->persistent = uni::New(parser->isolate, *f->value);
+      f->pvalue = uni::New(parser->isolate, *f->value);
       delete f->value;
       f->value = NULL;
       f->pkey = uni::New(parser->isolate, *f->key);
@@ -600,7 +602,7 @@ namespace ijson {
     if (args.Length() != 0) UNI_THROW(Exception::Error(String::New("bad arg count")));
 
     if (parser->frame->prev) UNI_THROW(Exception::Error(String::New("Unexpected end of input text")));
-    Local<Array> arr = Local<Array>::Cast(Local<Value>::New(uni::Deref(parser->frame->persistent)));
+    Local<Array> arr = Local<Array>::Cast(Local<Value>::New(uni::Deref(parser->frame->pvalue)));
     if (arr->Length() > 1) {
       char message[80];
       snprintf(message, sizeof message, "Too many results: %d", arr->Length());
@@ -639,10 +641,12 @@ namespace ijson {
     this->state = BEFORE_VALUE;
     this->frame = new Frame(NULL, false);
     this->frame->isArray = true;
-    this->frame->persistent = uni::New(this->isolate, Array::New(0));
+    this->frame->pvalue = uni::New(this->isolate, Array::New(0));
   }
 
-  Parser::~Parser() {}
+  Parser::~Parser() {
+    delete this->frame;
+  }
 }
 
 extern "C" {
