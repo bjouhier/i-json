@@ -5,7 +5,9 @@
 #include <v8.h> 
 #include <node.h> 
 #include <node_buffer.h>
+#include <string>
 #include <vector>
+#include <algorithm>
 
 using namespace node;
 using namespace v8;
@@ -84,11 +86,12 @@ namespace ijson {
     int line;
     bool isDouble;
     bool needsKey;
-    bool error;
+    std::string* error;
     bool debug;
     State state;
     Frame* frame;
     char* data;
+    int len;
     Isolate* isolate;
     std::vector<char> keep;
     Cache* keysCache;
@@ -121,6 +124,7 @@ namespace ijson {
     Frame* prev;
     Frame* next;
     bool isArray;
+    bool needsValue;
 
     void setValue(Local<Value> val) {
       //console.log("setValue: key=" + this.key + ", value=" + val);
@@ -131,6 +135,7 @@ namespace ijson {
         Local<Object> obj = Local<Object>::Cast(*this->value);
         obj->Set(*this->key, val);
       }
+      this->needsValue = false;
     }
   };
 
@@ -224,6 +229,20 @@ namespace ijson {
     N_ULL,
     NU_LL,
     NUL_L;
+
+  static void setError(Parser* parser, int pos, const char* detail) {
+    char message[80];
+    int len = parser->len - pos;
+    if (len > 20) len = 20;
+    std::string near(parser->data + pos, pos + len);
+    std::replace(near.begin(), near.end(), '\n', '\0'); // 
+    snprintf(message, sizeof message, "line: %d %s near %s", parser->line, detail, near.c_str());
+    parser->error = new std::string(message);
+  }
+
+  static void inline error(Parser* parser, int pos, int cla) {
+    setError(parser, pos, "syntax error");
+  }
 
   static void inline escapeOpen(Parser* parser, int pos, int cla) {
     parser->keep.insert(parser->keep.end(), parser->data + parser->beg, parser->data + pos);
@@ -386,14 +405,16 @@ namespace ijson {
     parser->frame = frame;
     frame->isArray = true;
     *frame->value = Array::New(0);
+    frame->needsValue = false;
     parser->needsKey = false;
     parser->state = BEFORE_VALUE;
   }
 
   static void inline arrayClose(Parser* parser, int pos, int cla) {
+    if (parser->frame->needsValue) return setError(parser, pos, "expected value after comma, got ]");
     Local<Value> val = *parser->frame->value;
     parser->frame = parser->frame->prev;
-    if (parser->frame == NULL) { printf("BAD ARRAY CLOSE\n"); exit(1); }
+    if (parser->frame == NULL) return setError(parser, pos, "too many ]");
     parser->frame->setValue(val);
     parser->state = AFTER_VALUE;
   }
@@ -404,14 +425,17 @@ namespace ijson {
     parser->frame = frame;
     frame->isArray = false;
     *frame->value = Object::New();
+    frame->needsValue = false;
     parser->needsKey = true;
     parser->state = BEFORE_KEY;
   }
 
   static void inline objectClose(Parser* parser, int pos, int cla) {
+    if (parser->frame->isArray) return setError(parser, pos, "expected ] or comma, got }");
+    if (parser->frame->needsValue) return setError(parser, pos, "expected key after comma, got }");
     Local<Value> val = *parser->frame->value;
     parser->frame = parser->frame->prev;
-    if (parser->frame == NULL) { printf("BAD OBJECT CLOSE\n"); exit(1); }
+    if (parser->frame == NULL) return setError(parser, pos, "too many }");
     parser->frame->setValue(val);
     parser->state = AFTER_VALUE;
   }
@@ -428,14 +452,11 @@ namespace ijson {
       parser->state = BEFORE_KEY;
       parser->needsKey = true;
     }
+    frame->needsValue = true;
   }
 
   static void inline eatNL(Parser* parser, int pos, int cla) {
     parser->line++;
-  }
-
-  static void inline error(Parser* parser, int pos, int cla) {
-    parser->error = true;
   }
 
   int initStates() {
@@ -620,6 +641,7 @@ namespace ijson {
     char* data = Buffer::Data(buf);
     int len = (int)Buffer::Length(buf);
     parser->data = data;
+    parser->len = len;
 
     int cacheLen = len / 16;
     if (cacheLen < 2) cacheLen = 2;
@@ -645,17 +667,16 @@ namespace ijson {
       delete f->key;
       f->key = NULL;
     }
-    delete parser->frame->next;
-    parser->frame->next = NULL;
+    if (parser->frame) {
+      delete parser->frame->next;
+      parser->frame->next = NULL;
+    }
 
     delete parser->keysCache;
     delete parser->valuesCache;
 
     if (parser->error) {
-      char message[80];
-      // TODO: check that we don't read beyond end of data.
-      snprintf(message, sizeof message, "JSON syntax error line: %d near %20s", parser->line, data + pos);
-      UNI_THROW(Exception::Error(String::New(message)));
+      UNI_THROW(Exception::Error(String::New(parser->error->c_str())));
     }
     if (parser->beg != -1) {
       parser->keep.insert(parser->keep.end(), parser->data + parser->beg, parser->data + pos);
@@ -708,7 +729,7 @@ namespace ijson {
     this->line = 1;
     this->isDouble = false;
     this->needsKey = false;
-    this->error = false;
+    this->error = NULL;
     this->debug = false;
     this->state = BEFORE_VALUE;
     this->frame = new Frame(NULL, false);
@@ -717,7 +738,8 @@ namespace ijson {
   }
 
   Parser::~Parser() {
-    delete this->frame;
+    if (this->error) delete this->error;
+    if (this->frame) delete this->frame;
   }
 }
 
