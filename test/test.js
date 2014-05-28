@@ -17,7 +17,7 @@ function check(r1, r2) {
 	var s1 = JSON.stringify(r1, null, '\t');
 	var s2 = JSON.stringify(r2, null, '\t');
 	if (s1 === s2) {
-		console.log("SAME RESULTS!");
+		//console.log("SAME RESULTS!");
 	} else {
 		console.log("DIFFERENT RESULTS!");
 		var a1 = s1.split('\n');
@@ -34,7 +34,7 @@ function check(r1, r2) {
 
 for (var pass = 1; pass <= 100; pass++) {
 	console.log("*** PASS " + pass + " ***");
-	var r1 = test("JSON", JSON.parse, big);
+	var r1 = test("JSON.parse", JSON.parse, big);
 
 	var r2 = test("I-JSON single chunk", function(data) {
 		var parser = ijson.createParser();
@@ -72,7 +72,7 @@ for (var pass = 1; pass <= 100; pass++) {
 		}, big.toString('utf8'));
 		check(r1, r4);
 	} catch (ex) {
-		console.log("skipping jsonparse test: " + ex.message);
+		//console.log("skipping jsonparse test: " + ex.message);
 	}
 
 	try {
@@ -84,7 +84,7 @@ for (var pass = 1; pass <= 100; pass++) {
 		console.log("clarinet does not materialize result, time is for parsing only");
 		//check(r1, r5);
 	} catch (ex) {
-		console.log("skipping clarinet test: " + ex.message);
+		//console.log("skipping clarinet test: " + ex.message);
 	}
-	console.log(process.memoryUsage());
+	//console.log(process.memoryUsage());
 }
