@@ -15,6 +15,59 @@ namespace ijson {
   typedef void (*parseFn)(Parser*, int, int);
   typedef parseFn* State;
 
+#include "fasthash.c"
+
+#define CacheEntryMaxSize 16
+
+  class CacheEntry {
+  public:
+    CacheEntry() {
+      this->len = -1;
+    }
+
+    char bytes[CacheEntryMaxSize];
+    char len;
+    Local<Value> value;
+  };
+
+  class Cache {
+  public:
+    Cache(int size) {
+      this->entries = new CacheEntry[size]();
+      this->size = size;
+      this->hits = 0;
+      this->misses = 0;
+    }
+    ~Cache() {
+      //printf("hits=%d, misses=%d\n", this->hits, this->misses);
+      delete this->entries;
+    }
+    CacheEntry *entries;
+    int size;
+    int hits;
+    int misses;
+
+    void intern(char* p, size_t len, Local<Value>* val, Cache* next, uint64_t hash) {
+      if (len > CacheEntryMaxSize) {
+        *val = next ? String::NewSymbol(p, len) : String::New(p, len);
+        return;
+      }
+      if (hash == 0) hash = fasthash64(p, len, 0);
+
+      CacheEntry* entry = this->entries + (hash % this->size);
+      if ((size_t)entry->len == len && !memcmp(p, entry->bytes, len)) {
+        *val = entry->value;
+        this->hits++;
+        return;
+      }
+      *val = next ? String::NewSymbol(p, len) : String::New(p, len);
+      entry->value = *val;
+      memcpy(entry->bytes, p, len);
+      entry->len = len;
+      this->misses++;
+    }
+  };
+
   class Parser: public ObjectWrap {
   public: 
     static void Init(Handle<Object> target);
@@ -35,6 +88,8 @@ namespace ijson {
     char* data;
     Isolate* isolate;
     std::vector<char> keep;
+    Cache* keysCache;
+    Cache* valuesCache;
 
     static uni::CallbackType Update(const uni::FunctionCallbackInfo& args);
     static uni::CallbackType Result(const uni::FunctionCallbackInfo& args);
@@ -47,7 +102,7 @@ namespace ijson {
       if (prev) prev->next = this;
       this->next = NULL;
       this->value = alloc ? new Local<Value>() : NULL;
-      this->key = alloc ? new Local<String>() : NULL;
+      this->key = alloc ? new Local<Value>() : NULL;
     }
     ~Frame() {
       if (this->next) delete this->next;
@@ -57,9 +112,9 @@ namespace ijson {
     // Local values are faster but we cannot keep them across calls.
     // So we back them with persistent slots.
     Persistent<Value> pvalue;
-    Persistent<String> pkey;
+    Persistent<Value> pkey;
     Local<Value>* value;
-    Local<String>* key;
+    Local<Value>* key;
     Frame* prev;
     Frame* next;
     bool isArray;
@@ -215,7 +270,7 @@ namespace ijson {
 
   static void inline stringClose(Parser* parser, int pos, int cla) {
     char* p = parser->data + parser->beg;
-    int len = pos - parser->beg;
+    size_t len = (size_t)(pos - parser->beg);
     parser->beg = -1;
     if (parser->keep.size() != 0) {
       len += parser->keep.size();
@@ -223,13 +278,14 @@ namespace ijson {
       p = &parser->keep[0];
     }
     Frame* frame = parser->frame;
+
     if (parser->needsKey) {
-      Local<String> kval = String::NewSymbol(p, (size_t)len);
-      *frame->key = kval;
+      parser->keysCache->intern(p, len, frame->key, parser->valuesCache, 0);
       parser->needsKey = false;
       parser->state = AFTER_KEY;
     } else {
-      Local<String> val = String::New(p, (size_t)len);
+      Local<Value> val;
+      parser->valuesCache->intern(p, len, &val, NULL, 0);
       frame->setValue(val);
       parser->state = AFTER_VALUE;
     }
@@ -562,11 +618,18 @@ namespace ijson {
     int len = (int)Buffer::Length(buf);
     parser->data = data;
 
+    int cacheLen = len / 16;
+    if (cacheLen < 2) cacheLen = 2;
+    else if (cacheLen > 512) cacheLen = 512;
+
+    parser->keysCache = new Cache(cacheLen);
+    parser->valuesCache = new Cache(cacheLen);
+
     for (Frame* f = parser->frame; f; f = f->prev) {
       f->value = new Local<Value>();
       *f->value = Local<Value>::New(uni::Deref(f->pvalue));
-      f->key = new Local<String>();
-      *f->key = Local<String>::New(uni::Deref(f->pkey));
+      f->key = new Local<Value>();
+      *f->key = Local<Value>::New(uni::Deref(f->pkey));
     }
     int pos = parse(parser, data, len);
     for (Frame* f = parser->frame; f; f = f->prev) {
@@ -579,6 +642,9 @@ namespace ijson {
     }
     delete parser->frame->next;
     parser->frame->next = NULL;
+
+    delete parser->keysCache;
+    delete parser->valuesCache;
 
     if (parser->error) {
       char message[80];

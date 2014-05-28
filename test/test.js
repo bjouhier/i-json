@@ -49,7 +49,7 @@ for (var pass = 1; pass <= 3; pass++) {
 		var pos = 0;
 		var len = data.length;
 		while (pos < len) {
-			var l = Math.floor(Math.random() * 1024) + 1;
+			var l = Math.floor(Math.random() * 8192) + 1;
 			if (pos + l > len) l = len - pos;
 			parser.update(data.slice(pos, pos + l));
 			pos += l;
