@@ -44,7 +44,7 @@ for (var pass = 1; pass <= 100; pass++) {
 
 	check(r1, r2);
 
-	/*var r3 = test("I-JSON multiple chunks", function(data) {
+	var r3 = test("I-JSON multiple chunks", function(data) {
 		var parser = ijson.createParser();
 		var pos = 0;
 		var len = data.length;
@@ -57,7 +57,7 @@ for (var pass = 1; pass <= 100; pass++) {
 		return parser.result();
 	}, big);
 
-	check(r1, r3);*/
+	check(r1, r3);
 
 	try {
 		var jsonparse = require('jsonparse');
