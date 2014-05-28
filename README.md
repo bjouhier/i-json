@@ -26,7 +26,7 @@ var obj = parser.result();
 npm install i-json
 ```
 
-# Performance
+## Performance
 
 Typical results of the test program on my MBP i7
 
@@ -36,11 +36,11 @@ I-JSON single chunk: 1046 ms
 I-JSON multiple chunks: 1278 ms
 ```
 
-# TODO
+## TODO
 
 * Implement \uxxxx unicode sequences
 * Cleanup packaging with fallback to JS implementation if binary module is not available.
 
-# License
+## License
 
 [MIT license](http://en.wikipedia.org/wiki/MIT_License).
