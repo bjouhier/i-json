@@ -1,6 +1,6 @@
 # Fast incremental JSON parser
 
-i-json is a fast incremental JSON parser implemented in pure JS. 
+i-json is a fast incremental JSON parser implemented in C++. 
 
 See https://github.com/joyent/node/issues/7543#issuecomment-43974821 for background discussion
 
@@ -11,8 +11,9 @@ var ijson = require('i-json');
 
 var parser = ijson.createParser();
 
-// update the parser with the next piece of JSON text.
+// update the parser with the next piece of JSON buffer.
 // This call will typically be issued from a 'data' event handler
+// Note: jsonChunk must be a buffer, not a string
 parser.update(jsonChunk);
 
 // retrieve the result
@@ -30,12 +31,15 @@ npm install i-json
 Typical results of the test program on my MBP i7
 
 ```
-JSON: 622 ms
-I-JSON single chunk: 1661 ms
-I-JSON multiple chunks: 1800 ms
+JSON.parse: 632 ms
+I-JSON single chunk: 1046 ms
+I-JSON multiple chunks: 1278 ms
 ```
 
-It is a bit faster than json2, which is implemented with regexp sanitization and `eval`.
+# TODO
+
+* Implement \uxxxx unicode sequences
+* Cleanup packaging with fallback to JS implementation if binary module is not available.
 
 # License
 
