@@ -15,6 +15,10 @@ namespace uni {
     return Persistent<T>::New(isolate, handle);
   }
   template <class T>
+  void Dispose(Isolate* isolate, Persistent<T>& handle) {
+    handle.Dispose(isolate);
+  }
+  template <class T>
   void Reset(Persistent<T>& persistent, Handle<T> handle) {
     persistent.Reset(Isolate::GetCurrent(), handle);
   }
@@ -42,6 +46,10 @@ namespace uni {
   template <class T>
   Persistent<T> New(Isolate* isolate, Handle<T> handle) {
     return Persistent<T>::New(handle);
+  }
+  template <class T>
+  void Dispose(Isolate* isolate, Persistent<T>& handle) {
+    handle.Dispose();
   }
   template <class T>
   void Reset(Persistent<T>& persistent, Handle<T> handle) {

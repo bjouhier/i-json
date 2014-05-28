@@ -21,7 +21,7 @@ function check(r1, r2) {
 	} else {
 		console.log("DIFFERENT RESULTS!");
 		var a1 = s1.split('\n');
-		var a2 = s2.split('\n');
+		var a2 = (s2 || '').split('\n');
 		for (var i = 0; i < a1.length; i++) {
 			if (a1[i] !== a2[i]) {
 				console.log((i + 1) + ": a1=" + a1[i]);
@@ -32,7 +32,7 @@ function check(r1, r2) {
 	}
 }
 
-for (var pass = 1; pass <= 3; pass++) {
+for (var pass = 1; pass <= 100; pass++) {
 	console.log("*** PASS " + pass + " ***");
 	var r1 = test("JSON", JSON.parse, big);
 
@@ -44,7 +44,7 @@ for (var pass = 1; pass <= 3; pass++) {
 
 	check(r1, r2);
 
-	var r3 = test("I-JSON multiple chunks", function(data) {
+	/*var r3 = test("I-JSON multiple chunks", function(data) {
 		var parser = ijson.createParser();
 		var pos = 0;
 		var len = data.length;
@@ -57,7 +57,7 @@ for (var pass = 1; pass <= 3; pass++) {
 		return parser.result();
 	}, big);
 
-	check(r1, r3);
+	check(r1, r3);*/
 
 	try {
 		var jsonparse = require('jsonparse');
@@ -86,4 +86,5 @@ for (var pass = 1; pass <= 3; pass++) {
 	} catch (ex) {
 		console.log("skipping clarinet test: " + ex.message);
 	}
+	console.log(process.memoryUsage());
 }

@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2014 Bruno Jouhier <bjouhier@gmail.com>
+ * MIT License
+ */
 #include <v8.h> 
 #include <node.h> 
 #include <node_buffer.h>
@@ -5,7 +9,6 @@
 
 using namespace node;
 using namespace v8;
-//using namespace std;
 
 #include "uni.h"
 
@@ -40,7 +43,7 @@ namespace ijson {
     }
     ~Cache() {
       //printf("hits=%d, misses=%d\n", this->hits, this->misses);
-      delete this->entries;
+      delete[] this->entries;
     }
     CacheEntry *entries;
     int size;
@@ -628,15 +631,17 @@ namespace ijson {
     for (Frame* f = parser->frame; f; f = f->prev) {
       f->value = new Local<Value>();
       *f->value = Local<Value>::New(uni::Deref(f->pvalue));
+      uni::Dispose(parser->isolate, f->pvalue);
       f->key = new Local<Value>();
       *f->key = Local<Value>::New(uni::Deref(f->pkey));
+      uni::Dispose(parser->isolate, f->pkey);
     }
     int pos = parse(parser, data, len);
     for (Frame* f = parser->frame; f; f = f->prev) {
-      f->pvalue = uni::New(parser->isolate, *f->value);
+      uni::Reset(f->pvalue, *f->value);
       delete f->value;
       f->value = NULL;
-      f->pkey = uni::New(parser->isolate, *f->key);
+      uni::Reset(f->pkey, *f->key);
       delete f->key;
       f->key = NULL;
     }
@@ -669,6 +674,7 @@ namespace ijson {
 
     if (parser->frame->prev) UNI_THROW(Exception::Error(String::New("Unexpected end of input text")));
     Local<Array> arr = Local<Array>::Cast(Local<Value>::New(uni::Deref(parser->frame->pvalue)));
+    parser->frame->pvalue.Dispose();
     if (arr->Length() > 1) {
       char message[80];
       snprintf(message, sizeof message, "Too many results: %d", arr->Length());
@@ -707,7 +713,7 @@ namespace ijson {
     this->state = BEFORE_VALUE;
     this->frame = new Frame(NULL, false);
     this->frame->isArray = true;
-    this->frame->pvalue = uni::New(this->isolate, Array::New(0));
+    uni::Reset(this->frame->pvalue, Local<Value>::New(Array::New(0)));
   }
 
   Parser::~Parser() {
