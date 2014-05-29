@@ -38,10 +38,10 @@ for (var pass = 1; pass <= 100; pass++) {
 
 	var r2;
 	test("I-JSON single chunk", function(data) {
-		var parser = ijson.createParser();
-		parser.update(data, 0, function(val, path) {
+		var parser = ijson.createParser(function(val, path) {
 			r2 = val;
-		});
+		}, 0);
+		parser.update(data);
 		return parser.result();
 	}, big);
 
@@ -49,15 +49,15 @@ for (var pass = 1; pass <= 100; pass++) {
 
 	var r3;
 	test("I-JSON multiple chunks", function(data) {
-		var parser = ijson.createParser();
+		var parser = ijson.createParser(function(val, path) {
+			r3 = val;
+		}, 0);
 		var pos = 0;
 		var len = data.length;
 		while (pos < len) {
 			var l = Math.floor(Math.random() * 8192) + 1;
 			if (pos + l > len) l = len - pos;
-			parser.update(data.slice(pos, pos + l),  0, function(val, path) {
-				r3 = val;
-			});
+			parser.update(data.slice(pos, pos + l));
 			pos += l;
 		}
 		return parser.result();

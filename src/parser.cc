@@ -96,7 +96,7 @@ namespace ijson {
     Cache* keysCache;
     Cache* valuesCache;
     int callbackDepth;
-    Local<Function>* callback;
+    Persistent<Function> callback;
 
     static uni::CallbackType Update(const uni::FunctionCallbackInfo& args);
     static uni::CallbackType Result(const uni::FunctionCallbackInfo& args);
@@ -134,7 +134,7 @@ namespace ijson {
 
     void setValue(Local<Value> val) {
       this->needsValue = false;
-      if (this->parser->callback && this->depth <= this->parser->callbackDepth) {
+      if (this->depth <= this->parser->callbackDepth) {
         val = this->callback(val);
         if (val->IsUndefined()) return;
       }
@@ -157,7 +157,7 @@ namespace ijson {
       Handle<Value> argv[2];
       argv[0] = val;
       argv[1] = path;
-      Handle<Value> res = MakeCallback(Context::GetCurrent()->Global(), *this->parser->callback, 2, argv);
+      Handle<Value> res = MakeCallback(Context::GetCurrent()->Global(), uni::Deref(this->parser->callback), 2, argv);
       return Local<Value>::New(res);
     }
   };
@@ -660,16 +660,6 @@ namespace ijson {
     if (args.Length() < 1) UNI_THROW(Exception::Error(String::New("bad arg count")));
     if (!args[0]->IsObject() || !Buffer::HasInstance(args[0])) UNI_THROW(Exception::Error(String::New("bad arg 1: buffer expected")));
     
-    if (args.Length() >= 3) {
-      if (!args[1]->IsNumber())  UNI_THROW(Exception::Error(String::New("bad arg 2: integer expected")));
-      parser->callbackDepth = args[1]->Int32Value();
-      if (!args[2]->IsFunction())   UNI_THROW(Exception::Error(String::New("bad arg 3: function expected")));
-      parser->callback = new Local<Function>();
-      *parser->callback = Local<Function>::Cast(args[2]);
-    } else {
-      parser->callbackDepth = -1;
-    }
-
     Local<Object> buf = Local<Object>::Cast(args[0]);
     char* data = Buffer::Data(buf);
     int len = (int)Buffer::Length(buf);
@@ -701,10 +691,6 @@ namespace ijson {
       uni::Reset(f->pkey, *f->key);
       delete f->key;
       f->key = NULL;
-    }
-    if (parser->callback) {
-      delete parser->callback;
-      parser->callback = NULL;
     }
     if (parser->frame) {
       delete parser->frame->next;
@@ -759,6 +745,18 @@ namespace ijson {
     UNI_SCOPE(scope);
     Parser* parser = new Parser();
     parser->Wrap(args.This());
+    // little js wrapper is responsible for passing 2 args
+    if (args.Length() != 2) UNI_THROW(Exception::Error(String::New("bad arg count")));
+    if (!args[0]->IsUndefined()) {
+      if (!args[0]->IsFunction()) UNI_THROW(Exception::Error(String::New("bad arg 1: function expected"))); 
+      uni::Reset(parser->callback, Local<Function>::Cast(args[0]));
+      if (!args[1]->IsUndefined()) {
+        if (!args[1]->IsNumber())  UNI_THROW(Exception::Error(String::New("bad arg 2: integer expected")));
+        parser->callbackDepth = args[1]->Int32Value();
+      } else {
+        parser->callbackDepth = 0x7fffffff;
+      }
+    }
     UNI_RETURN(scope, args, args.This());
   }
 
@@ -774,12 +772,12 @@ namespace ijson {
     this->frame->isArray = true;
     uni::Reset(this->frame->pvalue, Local<Value>::New(Array::New(0)));
     this->callbackDepth = -1;
-    this->callback = NULL;
   }
 
   Parser::~Parser() {
     if (this->error) delete this->error;
     if (this->frame) delete this->frame;
+    uni::Dispose(this->isolate, this->callback);
   }
 }
 

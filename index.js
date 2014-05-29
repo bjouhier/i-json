@@ -2,8 +2,8 @@
 
 try {
 	var nat = require('./build/Release/ijson_bindings');
-	exports.createParser = function() {
-		var p = new nat.Parser();
+	exports.createParser = function(cb, depth) {
+		var p = new nat.Parser(cb, depth);
 		return p;
 	};
 } catch (ex) {
