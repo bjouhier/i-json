@@ -749,4 +749,4 @@ extern "C" {
   }
 }
 
-NODE_MODULE(ijson_native, init);
+NODE_MODULE(ijson_bindings, init);
