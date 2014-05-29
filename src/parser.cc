@@ -86,6 +86,7 @@ namespace ijson {
     int line;
     bool isDouble;
     bool needsKey;
+    uint unicode;
     std::string* error;
     State state;
     Frame* frame;
@@ -233,6 +234,29 @@ namespace ijson {
     return state;
   }
 
+  void fillTransition(Transition* t, int cla, parseFn fn) {
+    t->cla = cla;
+    t->fn = fn;
+  }
+
+  static inline int hex(char ch) {
+    if (ch <= '9') return ch - '0';
+    if (ch <= 'F') return 10 + ch - 'A';
+    return 10 + ch - 'a';
+  }
+
+  State makeHexState(parseFn fn, parseFn def) {
+    Transition* transitions = new Transition[7];
+    fillTransition(transitions + 0, DIGIT, fn);
+    fillTransition(transitions + 1, a_, fn);
+    fillTransition(transitions + 2, e_, fn);
+    fillTransition(transitions + 3, f_, fn);
+    fillTransition(transitions + 4, E_, fn);
+    fillTransition(transitions + 5, HEX_REMAIN, fn);
+    fillTransition(transitions + 6, -1, NULL);
+    return makeState(transitions, def);
+  }
+
   static State BEFORE_VALUE,
     AFTER_VALUE,
     BEFORE_KEY,
@@ -242,6 +266,10 @@ namespace ijson {
     INSIDE_DOUBLE,
     INSIDE_EXP,
     AFTER_ESCAPE,
+    U_XXXX,
+    UX_XXX,
+    UXX_XX,
+    UXXX_X,
     T_RUE,
     TR_UE,
     TRU_E,
@@ -363,6 +391,41 @@ namespace ijson {
 
   static void inline escapeBSLASH(Parser* parser, int pos, int cla) {
     parser->keep.push_back('\\');
+    parser->beg = pos + 1;
+    parser->state = INSIDE_QUOTES;
+  }
+
+  static void inline u_xxxx(Parser* parser, int pos, int cla) {
+    parser->state = U_XXXX;
+  }
+
+  static void inline ux_xxx(Parser* parser, int pos, int cla) {
+    parser->unicode = hex(parser->data[pos]);
+    parser->state = UX_XXX;
+  }
+
+  static void inline uxx_xx(Parser* parser, int pos, int cla) {
+    parser->unicode = parser->unicode * 16 + hex(parser->data[pos]);
+    parser->state = UXX_XX;
+  }
+
+  static void inline uxxx_x(Parser* parser, int pos, int cla) {
+    parser->unicode = parser->unicode * 16 + hex(parser->data[pos]);
+    parser->state = UXXX_X;
+  }
+
+  static void inline uxxxx_(Parser* parser, int pos, int cla) {
+    uint u = parser->unicode * 16 + hex(parser->data[pos]);
+    // push UTF-8 representation of u
+    if (u < 0x80) parser->keep.push_back((char)u);
+    else if (u < 0x0800) {
+      parser->keep.push_back(0xc0 + (u >> 6));
+      parser->keep.push_back(0x80 + (u & 0x3f));
+    } else {
+      parser->keep.push_back(0xe0 + (u >> 12));
+      parser->keep.push_back(0x80 + ((u >> 6) & 0x3f));
+      parser->keep.push_back(0x80 + (u & 0x3f));
+    }
     parser->beg = pos + 1;
     parser->state = INSIDE_QUOTES;
   }
@@ -542,11 +605,16 @@ namespace ijson {
       { t_, escapeT },
       { DQUOTE, escapeDQUOTE },
       { BSLASH, escapeBSLASH },
-      //{ u_, escapeUnicode }, // SEE LATER
+      { u_, u_xxxx }, 
       { -1, NULL }
     };
     AFTER_ESCAPE = makeState(AFTER_ESCAPE_TRANSITIONS, error);
 
+    U_XXXX = makeHexState(ux_xxx, error);
+    UX_XXX = makeHexState(uxx_xx, error);
+    UXX_XX = makeHexState(uxxx_x, error);
+    UXXX_X = makeHexState(uxxxx_, error);
+    
     Transition T_RUE_TRANSITIONS[] = {
       { r_, tr_ue },
       { -1, NULL }

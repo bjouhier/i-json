@@ -81,10 +81,6 @@ I-JSON single chunk: 1046 ms
 I-JSON multiple chunks: 1278 ms
 ```
 
-## TODO
-
-* Implement \uxxxx unicode sequences
-
 ## License
 
 [MIT license](http://en.wikipedia.org/wiki/MIT_License).
