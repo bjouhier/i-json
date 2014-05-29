@@ -36,22 +36,28 @@ for (var pass = 1; pass <= 100; pass++) {
 	console.log("*** PASS " + pass + " ***");
 	var r1 = test("JSON.parse", JSON.parse, big);
 
-	var r2 = test("I-JSON single chunk", function(data) {
+	var r2;
+	test("I-JSON single chunk", function(data) {
 		var parser = ijson.createParser();
-		parser.update(data);
+		parser.update(data, 0, function(val, path) {
+			r2 = val;
+		});
 		return parser.result();
 	}, big);
 
 	check(r1, r2);
 
-	var r3 = test("I-JSON multiple chunks", function(data) {
+	var r3;
+	test("I-JSON multiple chunks", function(data) {
 		var parser = ijson.createParser();
 		var pos = 0;
 		var len = data.length;
 		while (pos < len) {
 			var l = Math.floor(Math.random() * 8192) + 1;
 			if (pos + l > len) l = len - pos;
-			parser.update(data.slice(pos, pos + l));
+			parser.update(data.slice(pos, pos + l),  0, function(val, path) {
+				r3 = val;
+			});
 			pos += l;
 		}
 		return parser.result();

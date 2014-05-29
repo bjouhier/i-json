@@ -87,7 +87,6 @@ namespace ijson {
     bool isDouble;
     bool needsKey;
     std::string* error;
-    bool debug;
     State state;
     Frame* frame;
     char* data;
@@ -96,6 +95,8 @@ namespace ijson {
     std::vector<char> keep;
     Cache* keysCache;
     Cache* valuesCache;
+    int callbackDepth;
+    Local<Function>* callback;
 
     static uni::CallbackType Update(const uni::FunctionCallbackInfo& args);
     static uni::CallbackType Result(const uni::FunctionCallbackInfo& args);
@@ -103,12 +104,14 @@ namespace ijson {
 
   class Frame {
   public:
-    Frame(Frame* prev, bool alloc) {
+    Frame(Parser* parser, Frame* prev, bool alloc) {
+      this->parser = parser;
       this->prev = prev;
       if (prev) prev->next = this;
       this->next = NULL;
       this->value = alloc ? new Local<Value>() : NULL;
       this->key = alloc ? new Local<Value>() : NULL;
+      this->depth = prev ? prev->depth + 1 : 0;
     }
     ~Frame() {
       if (this->next) delete this->next;
@@ -121,12 +124,20 @@ namespace ijson {
     Persistent<Value> pkey;
     Local<Value>* value;
     Local<Value>* key;
+
+    Parser* parser;
     Frame* prev;
     Frame* next;
     bool isArray;
     bool needsValue;
+    int depth;
 
     void setValue(Local<Value> val) {
+      this->needsValue = false;
+      if (this->parser->callback && this->depth <= this->parser->callbackDepth) {
+        val = this->callback(val);
+        if (val->IsUndefined()) return;
+      }
       //console.log("setValue: key=" + this.key + ", value=" + val);
       if (this->isArray) {
         Local<Array> arr = Local<Array>::Cast(*this->value);
@@ -135,7 +146,19 @@ namespace ijson {
         Local<Object> obj = Local<Object>::Cast(*this->value);
         obj->Set(*this->key, val);
       }
-      this->needsValue = false;
+    }
+
+    Local<Value> callback(Local<Value> val) {
+      Local<Array> path = Array::New(this->depth);
+      for (Frame* f = this; f->prev; f = f->prev) {
+        if (f->isArray) path->Set(f->depth - 1, Integer::New(Local<Array>::Cast(*f->value)->Length()));
+        else path->Set(f->depth - 1, *f->key);
+      }
+      Handle<Value> argv[2];
+      argv[0] = val;
+      argv[1] = path;
+      Handle<Value> res = MakeCallback(Context::GetCurrent()->Global(), *this->parser->callback, 2, argv);
+      return Local<Value>::New(res);
     }
   };
 
@@ -401,7 +424,7 @@ namespace ijson {
 
   static void inline arrayOpen(Parser* parser, int pos, int cla) {
     Frame* frame = parser->frame->next;
-    if (frame == NULL) frame = new Frame(parser->frame, true);
+    if (frame == NULL) frame = new Frame(parser, parser->frame, true);
     parser->frame = frame;
     frame->isArray = true;
     *frame->value = Array::New(0);
@@ -421,7 +444,7 @@ namespace ijson {
 
   static void inline objectOpen(Parser* parser, int pos, int cla) {
     Frame* frame = parser->frame->next;
-    if (frame == NULL) frame = new Frame(parser->frame, true);
+    if (frame == NULL) frame = new Frame(parser, parser->frame, true);
     parser->frame = frame;
     frame->isArray = false;
     *frame->value = Object::New();
@@ -620,7 +643,6 @@ namespace ijson {
     int pos = 0;
     while (pos < len && !parser->error) {
       int ch = buf[pos];
-      if (parser->debug) { printf("%c\n", ch); fflush(stdout); }
       int cla = classes[ch];
       parseFn fn = parser->state[cla];
       if (fn != NULL) fn(parser, pos, cla);
@@ -635,8 +657,19 @@ namespace ijson {
   uni::CallbackType Parser::Update(const uni::FunctionCallbackInfo& args) {
     UNI_SCOPE(scope);
     Parser* parser = ObjectWrap::Unwrap<Parser>(args.This());
-    if (args.Length() != 1) UNI_THROW(Exception::Error(String::New("bad arg count")));
-    if (!args[0]->IsObject()) UNI_THROW(Exception::Error(String::New("bad arg type")));
+    if (args.Length() < 1) UNI_THROW(Exception::Error(String::New("bad arg count")));
+    if (!args[0]->IsObject() || !Buffer::HasInstance(args[0])) UNI_THROW(Exception::Error(String::New("bad arg 1: buffer expected")));
+    
+    if (args.Length() >= 3) {
+      if (!args[1]->IsNumber())  UNI_THROW(Exception::Error(String::New("bad arg 2: integer expected")));
+      parser->callbackDepth = args[1]->Int32Value();
+      if (!args[2]->IsFunction())   UNI_THROW(Exception::Error(String::New("bad arg 3: function expected")));
+      parser->callback = new Local<Function>();
+      *parser->callback = Local<Function>::Cast(args[2]);
+    } else {
+      parser->callbackDepth = -1;
+    }
+
     Local<Object> buf = Local<Object>::Cast(args[0]);
     char* data = Buffer::Data(buf);
     int len = (int)Buffer::Length(buf);
@@ -658,7 +691,9 @@ namespace ijson {
       *f->key = Local<Value>::New(uni::Deref(f->pkey));
       uni::Dispose(parser->isolate, f->pkey);
     }
+
     int pos = parse(parser, data, len);
+
     for (Frame* f = parser->frame; f; f = f->prev) {
       uni::Reset(f->pvalue, *f->value);
       delete f->value;
@@ -666,6 +701,10 @@ namespace ijson {
       uni::Reset(f->pkey, *f->key);
       delete f->key;
       f->key = NULL;
+    }
+    if (parser->callback) {
+      delete parser->callback;
+      parser->callback = NULL;
     }
     if (parser->frame) {
       delete parser->frame->next;
@@ -730,11 +769,12 @@ namespace ijson {
     this->isDouble = false;
     this->needsKey = false;
     this->error = NULL;
-    this->debug = false;
     this->state = BEFORE_VALUE;
-    this->frame = new Frame(NULL, false);
+    this->frame = new Frame(this, NULL, false);
     this->frame->isArray = true;
     uni::Reset(this->frame->pvalue, Local<Value>::New(Array::New(0)));
+    this->callbackDepth = -1;
+    this->callback = NULL;
   }
 
   Parser::~Parser() {
