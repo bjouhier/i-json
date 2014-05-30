@@ -54,23 +54,23 @@ namespace uni {
     return node::MakeCallback(isolate, target, fn, argc, argv);
   }
   template <class T>
-  void Dispose(Isolate* isolate, Persistent<T>& handle) {
+  inline void Dispose(Isolate* isolate, Persistent<T>& handle) {
     handle.Reset();
   }
   template <class T>
-  Handle<T> Deref(Isolate* isolate, Persistent<T>& handle) {
+  inline Handle<T> Deref(Isolate* isolate, Persistent<T>& handle) {
     return Local<T>::New(isolate, handle);
   }
   template <class T>
-  Persistent<T> New(Isolate* isolate, Handle<T> handle) {
+  inline Persistent<T> New(Isolate* isolate, Handle<T> handle) {
     return Persistent<T>::New(isolate, handle);
   }
   template <class T>
-  void Reset(Isolate* isolate, Persistent<T>& persistent, Handle<T> handle) {
+  inline void Reset(Isolate* isolate, Persistent<T>& persistent, Handle<T> handle) {
     persistent.Reset(isolate, handle);
   }
   template <class T>
-  Local<T> HandleToLocal(Handle<T> handle) {
+  inline Local<T> HandleToLocal(Handle<T> handle) {
     return handle;
   }
   inline Handle<Value> BufferToHandle(BufferType buf) {
@@ -87,11 +87,11 @@ namespace uni {
 # define UNI_SCOPE(scope) HandleScope scope
 # define UNI_THROW(isolate, ex) return ThrowException(ex)
   template <class T>
-  void Dispose(Isolate* isolate, Persistent<T>& handle) {
+  inline void Dispose(Isolate* isolate, Persistent<T>& handle) {
     handle.Dispose();
   }
   template <class T>
-  Handle<T> Deref(Isolate* isolate, Persistent<T>& handle) {
+  inline Handle<T> Deref(Isolate* isolate, Persistent<T>& handle) {
     return Local<T>::New(handle);
   }
   inline Local<String> NewString(Isolate* isolate, const char* str, int len = -1) {
@@ -137,15 +137,15 @@ namespace uni {
     return node::MakeCallback(target, fn, argc, argv);
   }
   template <class T>
-  Persistent<T> New(Isolate* isolate, Handle<T> handle) {
+  inline Persistent<T> New(Isolate* isolate, Handle<T> handle) {
     return Persistent<T>::New(handle);
   }
   template <class T>
-  void Reset(Isolate* isolate, Persistent<T>& persistent, Handle<T> handle) {
+  inline void Reset(Isolate* isolate, Persistent<T>& persistent, Handle<T> handle) {
     persistent = Persistent<T>::New(handle);
   }
   template <class T>
-  Local<T> HandleToLocal(Handle<T> handle) {
+  inline Local<T> HandleToLocal(Handle<T> handle) {
     return Local<T>::New(handle);
   }
   inline Handle<Value> BufferToHandle(BufferType buf) {
