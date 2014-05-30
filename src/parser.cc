@@ -129,7 +129,7 @@ namespace ijson {
     Parser* parser;
     Frame* prev;
     Frame* next;
-    bool isArray;
+    int arrayPos;
     bool needsValue;
     int depth;
 
@@ -137,10 +137,13 @@ namespace ijson {
       this->needsValue = false;
       if (this->depth <= this->parser->callbackDepth) {
         val = this->callback(val);
-        if (val->IsUndefined()) return;
+        if (val->IsUndefined()) {
+          if (this->arrayPos >= 0) this->arrayPos++;
+          return;
+        }
       }
       //console.log("setValue: key=" + this.key + ", value=" + val);
-      if (this->isArray) {
+      if (this->arrayPos >= 0) {
         Local<Array> arr = Local<Array>::Cast(*this->value);
         arr->Set(arr->Length(), val);
       } else {
@@ -152,7 +155,7 @@ namespace ijson {
     Local<Value> callback(Local<Value> val) {
       Local<Array> path = Array::New(this->depth);
       for (Frame* f = this; f->prev; f = f->prev) {
-        if (f->isArray) path->Set(f->depth - 1, Integer::New(Local<Array>::Cast(*f->value)->Length()));
+        if (f->arrayPos >= 0) path->Set(f->depth - 1, Integer::New(f->arrayPos));
         else path->Set(f->depth - 1, *f->key);
       }
       Handle<Value> argv[2];
@@ -489,7 +492,7 @@ namespace ijson {
     Frame* frame = parser->frame->next;
     if (frame == NULL) frame = new Frame(parser, parser->frame, true);
     parser->frame = frame;
-    frame->isArray = true;
+    frame->arrayPos = 0;
     *frame->value = Array::New(0);
     frame->needsValue = false;
     parser->needsKey = false;
@@ -509,7 +512,7 @@ namespace ijson {
     Frame* frame = parser->frame->next;
     if (frame == NULL) frame = new Frame(parser, parser->frame, true);
     parser->frame = frame;
-    frame->isArray = false;
+    frame->arrayPos = -1;
     *frame->value = Object::New();
     frame->needsValue = false;
     parser->needsKey = true;
@@ -517,7 +520,7 @@ namespace ijson {
   }
 
   void objectClose(Parser* parser, int pos, int cla) {
-    if (parser->frame->isArray) return setError(parser, pos, "expected ] or comma, got }");
+    if (parser->frame->arrayPos >= 0) return setError(parser, pos, "expected ] or comma, got }");
     if (parser->frame->needsValue) return setError(parser, pos, "expected key after comma, got }");
     Local<Value> val = *parser->frame->value;
     parser->frame = parser->frame->prev;
@@ -532,7 +535,7 @@ namespace ijson {
 
   void inline eatComma(Parser* parser, int pos, int cla) {
     Frame* frame = parser->frame;
-    if (frame->isArray) {
+    if (frame->arrayPos >= 0) {
       parser->state = BEFORE_VALUE;
     } else {
       parser->state = BEFORE_KEY;
@@ -837,7 +840,7 @@ namespace ijson {
     this->error = NULL;
     this->state = BEFORE_VALUE;
     this->frame = new Frame(this, NULL, false);
-    this->frame->isArray = true;
+    this->frame->arrayPos = 0;
     uni::Reset(this->frame->pvalue, Local<Value>::New(Array::New(0)));
     this->callbackDepth = -1;
   }
