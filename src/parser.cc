@@ -707,7 +707,7 @@ namespace ijson {
 
   static int dummy3 = initStates();
 
-  static int parse(Parser* parser, char* buf, int len) {
+  int parse(Parser* parser, char* buf, int len) {
     int pos = 0;
     while (pos < len && !parser->error) {
       int ch = buf[pos];
@@ -719,7 +719,18 @@ namespace ijson {
     return pos;
   }
 
-  static void update(Parser* parser, char* data, int len) {
+  // API
+  Persistent<FunctionTemplate> Parser::constructorTemplate;
+
+  uni::CallbackType Parser::Update(const uni::FunctionCallbackInfo& args) {
+    UNI_SCOPE(scope);
+    Parser* parser = ObjectWrap::Unwrap<Parser>(args.This());
+    if (args.Length() < 1) UNI_THROW(Exception::Error(String::New("bad arg count")));
+    if (!args[0]->IsObject() || !Buffer::HasInstance(args[0])) UNI_THROW(Exception::Error(String::New("bad arg 1: buffer expected")));
+    
+    Local<Object> buf = Local<Object>::Cast(args[0]);
+    char* data = Buffer::Data(buf);
+    int len = (int)Buffer::Length(buf);
     parser->data = data;
     parser->len = len;
 
@@ -757,32 +768,16 @@ namespace ijson {
     delete parser->keysCache;
     delete parser->valuesCache;
 
-    if (parser->error) return;
-
+    if (parser->error) {
+      UNI_THROW(Exception::Error(String::New(parser->error->c_str())));
+    }
     if (parser->beg != -1) {
       parser->keep.insert(parser->keep.end(), parser->data + parser->beg, parser->data + pos);
       parser->beg = 0;
     }
 
     parser->data = NULL;
-  }
 
-  // API
-  Persistent<FunctionTemplate> Parser::constructorTemplate;
-
-  uni::CallbackType Parser::Update(const uni::FunctionCallbackInfo& args) {
-    UNI_SCOPE(scope);
-    Parser* parser = ObjectWrap::Unwrap<Parser>(args.This());
-    if (args.Length() < 1) UNI_THROW(Exception::Error(String::New("bad arg count")));
-    if (!args[0]->IsObject() || !Buffer::HasInstance(args[0])) {
-      if (!args[0]->IsString()) UNI_THROW(Exception::Error(String::New("bad arg 1: buffer or string expected")));
-      String::Utf8Value utf8Val(args[0]->ToString());
-      update(parser, *utf8Val, utf8Val.length());
-    } else {
-      Local<Object> buf = Local<Object>::Cast(args[0]);
-      update(parser, Buffer::Data(buf), (int)Buffer::Length(buf));
-    }
-    if (parser->error) UNI_THROW(Exception::Error(String::New(parser->error->c_str())));
     UNI_RETURN(scope, args, Undefined());
   }
 
@@ -809,7 +804,7 @@ namespace ijson {
     uni::Reset(constructorTemplate, t);
     uni::Deref(constructorTemplate)->InstanceTemplate()->SetInternalFieldCount(1);
     uni::Deref(constructorTemplate)->SetClassName(String::NewSymbol("Parser"));
-    NODE_SET_PROTOTYPE_METHOD(uni::Deref(constructorTemplate), "update", Update);
+    NODE_SET_PROTOTYPE_METHOD(uni::Deref(constructorTemplate), "_update", Update);
     NODE_SET_PROTOTYPE_METHOD(uni::Deref(constructorTemplate), "result", Result);
     target->Set(String::NewSymbol("Parser"), uni::Deref(constructorTemplate)->GetFunction());
   }
