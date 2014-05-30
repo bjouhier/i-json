@@ -87,6 +87,12 @@ function testPass(prefix, parseOk) {
 	});
 }
 
+testPass("buffer: ", function parseOk(data) {
+	var parser = ijson.createParser();
+	parser.update(new Buffer(data, 'utf8'));
+	return parser.result();
+});
+
 testPass("full: ", function parseOk(data) {
 	var parser = ijson.createParser();
 	parser.update(data);
