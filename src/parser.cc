@@ -52,25 +52,7 @@ namespace ijson {
     int hits;
     int misses;
 
-    void intern(char* p, size_t len, Local<Value>* val, Cache* next, uint64_t hash) {
-      if (len > CacheEntryMaxSize) {
-        *val = next ? String::NewSymbol(p, len) : String::New(p, len);
-        return;
-      }
-      if (hash == 0) hash = fasthash64(p, len, 0);
-
-      CacheEntry* entry = this->entries + (hash % this->size);
-      if ((size_t)entry->len == len && !memcmp(p, entry->bytes, len)) {
-        *val = entry->value;
-        this->hits++;
-        return;
-      }
-      *val = next ? String::NewSymbol(p, len) : String::New(p, len);
-      entry->value = *val;
-      memcpy(entry->bytes, p, len);
-      entry->len = len;
-      this->misses++;
-    }
+    void intern(Parser* parser, char* p, size_t len, Local<Value>* val, Cache* next, uint64_t hash);
   };
 
   class Parser: public ObjectWrap {
@@ -102,6 +84,26 @@ namespace ijson {
     static uni::CallbackType Update(const uni::FunctionCallbackInfo& args);
     static uni::CallbackType Result(const uni::FunctionCallbackInfo& args);
   };
+
+  void Cache::intern(Parser* parser, char* p, size_t len, Local<Value>* val, Cache* next, uint64_t hash) {
+    if (len > CacheEntryMaxSize) {
+      *val = next ? uni::NewSymbol(parser->isolate, p, len) : uni::NewString(parser->isolate, p, len);
+      return;
+    }
+    if (hash == 0) hash = fasthash64(p, len, 0);
+
+    CacheEntry* entry = this->entries + (hash % this->size);
+    if ((size_t)entry->len == len && !memcmp(p, entry->bytes, len)) {
+      *val = entry->value;
+      this->hits++;
+      return;
+    }
+    *val = next ? uni::NewSymbol(parser->isolate, p, len) : uni::NewString(parser->isolate, p, len);
+    entry->value = *val;
+    memcpy(entry->bytes, p, len);
+    entry->len = len;
+    this->misses++;
+  }
 
   class Frame {
   public:
@@ -153,16 +155,19 @@ namespace ijson {
     }
 
     Local<Value> callback(Local<Value> val) {
-      Local<Array> path = Array::New(this->depth);
+      Isolate* isolate = this->parser->isolate;
+      Local<Array> path = uni::NewArray(isolate, this->depth);
       for (Frame* f = this; f->prev; f = f->prev) {
-        if (f->arrayPos >= 0) path->Set(f->depth - 1, Integer::New(f->arrayPos));
+        if (f->arrayPos >= 0) path->Set(f->depth - 1, uni::NewInteger(isolate, f->arrayPos));
         else path->Set(f->depth - 1, *f->key);
       }
       Handle<Value> argv[2];
       argv[0] = val;
       argv[1] = path;
-      Handle<Value> res = MakeCallback(Context::GetCurrent()->Global(), uni::Deref(this->parser->callback), 2, argv);
-      return Local<Value>::New(res);
+      Handle<Value> res = uni::MakeCallback(isolate, 
+        uni::GetCurrentContext(isolate)->Global(), 
+        uni::Deref(isolate, this->parser->callback), 2, argv);
+      return uni::HandleToLocal(res);
     }
   };
 
@@ -329,9 +334,9 @@ namespace ijson {
       p = &parser->keep[0];
     }
     if (parser->isDouble) {
-      parser->frame->setValue(Number::New(atof(p)));
+      parser->frame->setValue(uni::NewNumber(parser->isolate, atof(p)));
     } else {
-      parser->frame->setValue(Integer::New(atoi(p)));      
+      parser->frame->setValue(uni::NewInteger(parser->isolate, atoi(p)));      
     }
     parser->keep.clear();
     parseFn fn = AFTER_VALUE[cla];
@@ -356,12 +361,12 @@ namespace ijson {
     Frame* frame = parser->frame;
 
     if (parser->needsKey) {
-      parser->keysCache->intern(p, len, frame->key, parser->valuesCache, 0);
+      parser->keysCache->intern(parser, p, len, frame->key, parser->valuesCache, 0);
       parser->needsKey = false;
       parser->state = AFTER_KEY;
     } else {
       Local<Value> val;
-      parser->valuesCache->intern(p, len, &val, NULL, 0);
+      parser->valuesCache->intern(parser, p, len, &val, NULL, 0);
       frame->setValue(val);
       parser->state = AFTER_VALUE;
     }
@@ -446,7 +451,7 @@ namespace ijson {
   }
 
   void inline true_(Parser* parser, int pos, int cla) {
-    parser->frame->setValue(Local<Value>::New(True()));
+    parser->frame->setValue(uni::HandleToLocal(uni::True(parser->isolate)));
     parser->state = AFTER_VALUE;
   }
 
@@ -467,7 +472,7 @@ namespace ijson {
   }
 
   void inline false_(Parser* parser, int pos, int cla) {
-    parser->frame->setValue(Local<Value>::New(False()));
+    parser->frame->setValue(uni::HandleToLocal(uni::False(parser->isolate)));
     parser->state = AFTER_VALUE;
   }
 
@@ -484,7 +489,7 @@ namespace ijson {
   }
 
   void inline null_(Parser* parser, int pos, int cla) {
-    parser->frame->setValue(Local<Value>::New(Null()));
+    parser->frame->setValue(uni::HandleToLocal(uni::Null(parser->isolate)));
     parser->state = AFTER_VALUE;
   }
 
@@ -493,7 +498,7 @@ namespace ijson {
     if (frame == NULL) frame = new Frame(parser, parser->frame, true);
     parser->frame = frame;
     frame->arrayPos = 0;
-    *frame->value = Array::New(0);
+    *frame->value = uni::NewArray(parser->isolate, 0);
     frame->needsValue = false;
     parser->needsKey = false;
     parser->state = BEFORE_VALUE;
@@ -513,7 +518,7 @@ namespace ijson {
     if (frame == NULL) frame = new Frame(parser, parser->frame, true);
     parser->frame = frame;
     frame->arrayPos = -1;
-    *frame->value = Object::New();
+    *frame->value = uni::NewObject(parser->isolate);
     frame->needsValue = false;
     parser->needsKey = true;
     parser->state = BEFORE_KEY;
@@ -728,8 +733,9 @@ namespace ijson {
   uni::CallbackType Parser::Update(const uni::FunctionCallbackInfo& args) {
     UNI_SCOPE(scope);
     Parser* parser = ObjectWrap::Unwrap<Parser>(args.This());
-    if (args.Length() < 1) UNI_THROW(Exception::Error(String::New("bad arg count")));
-    if (!args[0]->IsObject() || !Buffer::HasInstance(args[0])) UNI_THROW(Exception::Error(String::New("bad arg 1: buffer expected")));
+    Isolate* isolate = parser->isolate;
+    if (args.Length() < 1) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "bad arg count")));
+    if (!args[0]->IsObject() || !Buffer::HasInstance(args[0])) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "bad arg 1: buffer expected")));
     
     Local<Object> buf = Local<Object>::Cast(args[0]);
     char* data = Buffer::Data(buf);
@@ -746,20 +752,20 @@ namespace ijson {
 
     for (Frame* f = parser->frame; f; f = f->prev) {
       f->value = new Local<Value>();
-      *f->value = Local<Value>::New(uni::Deref(f->pvalue));
-      uni::Dispose(parser->isolate, f->pvalue);
+      *f->value = uni::HandleToLocal(uni::Deref(isolate, f->pvalue));
+      uni::Dispose(isolate, f->pvalue);
       f->key = new Local<Value>();
-      *f->key = Local<Value>::New(uni::Deref(f->pkey));
-      uni::Dispose(parser->isolate, f->pkey);
+      *f->key = uni::HandleToLocal(uni::Deref(isolate, f->pkey));
+      uni::Dispose(isolate, f->pkey);
     }
 
     int pos = parse(parser, data, len);
 
     for (Frame* f = parser->frame; f; f = f->prev) {
-      uni::Reset(f->pvalue, *f->value);
+      uni::Reset(isolate, f->pvalue, *f->value);
       delete f->value;
       f->value = NULL;
-      uni::Reset(f->pkey, *f->key);
+      uni::Reset(isolate, f->pkey, *f->key);
       delete f->key;
       f->key = NULL;
     }
@@ -772,7 +778,7 @@ namespace ijson {
     delete parser->valuesCache;
 
     if (parser->error) {
-      UNI_THROW(Exception::Error(String::New(parser->error->c_str())));
+      UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, parser->error->c_str())));
     }
     if (parser->beg != -1) {
       parser->keep.insert(parser->keep.end(), parser->data + parser->beg, parser->data + pos);
@@ -781,21 +787,22 @@ namespace ijson {
 
     parser->data = NULL;
 
-    UNI_RETURN(scope, args, Undefined());
+    UNI_RETURN(scope, args, uni::Undefined(isolate));
   }
 
   uni::CallbackType Parser::Result(const uni::FunctionCallbackInfo& args) {
     UNI_SCOPE(scope);
     Parser* parser = ObjectWrap::Unwrap<Parser>(args.This());
-    if (args.Length() != 0) UNI_THROW(Exception::Error(String::New("bad arg count")));
+    Isolate* isolate = parser->isolate;
+    if (args.Length() != 0) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "bad arg count")));
 
-    if (parser->frame->prev) UNI_THROW(Exception::Error(String::New("Unexpected end of input text")));
-    Local<Array> arr = Local<Array>::Cast(Local<Value>::New(uni::Deref(parser->frame->pvalue)));
-    parser->frame->pvalue.Dispose();
+    if (parser->frame->prev) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "Unexpected end of input text")));
+    Local<Array> arr = Local<Array>::Cast(uni::HandleToLocal(uni::Deref(isolate, parser->frame->pvalue)));
+    uni::Dispose(isolate, parser->frame->pvalue);
     if (arr->Length() > 1) {
       char message[80];
       snprintf(message, sizeof message, "Too many results: %d", arr->Length());
-      UNI_THROW(Exception::Error(String::New(message)));
+      UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, message)));
     }
     UNI_RETURN(scope, args, arr->Get(0));
   }
@@ -803,26 +810,28 @@ namespace ijson {
   void Parser::Init(Handle<Object> target) {
     UNI_SCOPE(scope);
 
-    Local<FunctionTemplate> t = FunctionTemplate::New(New);
-    uni::Reset(constructorTemplate, t);
-    uni::Deref(constructorTemplate)->InstanceTemplate()->SetInternalFieldCount(1);
-    uni::Deref(constructorTemplate)->SetClassName(String::NewSymbol("Parser"));
-    NODE_SET_PROTOTYPE_METHOD(uni::Deref(constructorTemplate), "_update", Update);
-    NODE_SET_PROTOTYPE_METHOD(uni::Deref(constructorTemplate), "result", Result);
-    target->Set(String::NewSymbol("Parser"), uni::Deref(constructorTemplate)->GetFunction());
+    Isolate* isolate = Isolate::GetCurrent();
+    Local<FunctionTemplate> t = uni::NewFunctionTemplate(isolate, New);
+    uni::Reset(isolate, constructorTemplate, t);
+    uni::Deref(isolate, constructorTemplate)->InstanceTemplate()->SetInternalFieldCount(1);
+    uni::Deref(isolate, constructorTemplate)->SetClassName(uni::NewSymbol(isolate, "Parser"));
+    NODE_SET_PROTOTYPE_METHOD(uni::Deref(isolate, constructorTemplate), "_update", Update);
+    NODE_SET_PROTOTYPE_METHOD(uni::Deref(isolate, constructorTemplate), "result", Result);
+    target->Set(uni::NewSymbol(isolate, "Parser"), uni::Deref(isolate, constructorTemplate)->GetFunction());
   }
 
   uni::CallbackType Parser::New(const uni::FunctionCallbackInfo & args) {
     UNI_SCOPE(scope);
     Parser* parser = new Parser();
+    Isolate* isolate = parser->isolate;
     parser->Wrap(args.This());
     // little js wrapper is responsible for passing 2 args
-    if (args.Length() != 2) UNI_THROW(Exception::Error(String::New("bad arg count")));
+    if (args.Length() != 2) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "bad arg count")));
     if (!args[0]->IsUndefined()) {
-      if (!args[0]->IsFunction()) UNI_THROW(Exception::Error(String::New("bad arg 1: function expected"))); 
-      uni::Reset(parser->callback, Local<Function>::Cast(args[0]));
+      if (!args[0]->IsFunction()) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "bad arg 1: function expected"))); 
+      uni::Reset(isolate, parser->callback, Local<Function>::Cast(args[0]));
       if (!args[1]->IsUndefined()) {
-        if (!args[1]->IsNumber())  UNI_THROW(Exception::Error(String::New("bad arg 2: integer expected")));
+        if (!args[1]->IsNumber())  UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "bad arg 2: integer expected")));
         parser->callbackDepth = args[1]->Int32Value();
       } else {
         parser->callbackDepth = 0x7fffffff;
@@ -832,7 +841,8 @@ namespace ijson {
   }
 
   Parser::Parser() {
-    this->isolate = Isolate::GetCurrent();
+    Isolate* isolate =  Isolate::GetCurrent();
+    this->isolate = isolate;
     this->beg = -1;
     this->line = 1;
     this->isDouble = false;
@@ -841,7 +851,7 @@ namespace ijson {
     this->state = BEFORE_VALUE;
     this->frame = new Frame(this, NULL, false);
     this->frame->arrayPos = 0;
-    uni::Reset(this->frame->pvalue, Local<Value>::New(Array::New(0)));
+    uni::Reset(isolate, this->frame->pvalue, uni::NewValue(isolate, uni::NewArray(isolate, 0)));
     this->callbackDepth = -1;
   }
 
