@@ -21,12 +21,13 @@ var parser = ijson.createParser();
 
 // update the parser with the next piece of JSON buffer.
 // This call will typically be issued from a 'data' event handler
-// Note: jsonChunk must be a buffer, not a string
 parser.update(jsonChunk);
 
 // retrieve the result
 var obj = parser.result();
 ```
+
+You can pass a `Buffer` or a string to `parser.update`. If you get your input data in a `Buffer`, you should pass it directly to `parser.update`; you should not convert it and pass it as a string. 
 
 You can also configure a callback which will be called during parsing:
 
