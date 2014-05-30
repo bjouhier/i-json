@@ -148,6 +148,7 @@ namespace ijson {
       if (this->arrayPos >= 0) {
         Local<Array> arr = Local<Array>::Cast(*this->value);
         arr->Set(arr->Length(), val);
+        this->arrayPos++;
       } else {
         Local<Object> obj = Local<Object>::Cast(*this->value);
         obj->Set(*this->key, val);
@@ -307,18 +308,18 @@ namespace ijson {
     NU_LL,
     NUL_L;
 
-  void setError(Parser* parser, int pos, const char* detail) {
+  void setError(Parser* parser, int pos) {
     char message[80];
     int len = parser->len - pos;
     if (len > 20) len = 20;
-    std::string near(parser->data + pos, pos + len);
+    std::string near(parser->data + pos, len);
     std::replace(near.begin(), near.end(), '\n', '\0'); // 
-    snprintf(message, sizeof message, "line: %d %s near %s", parser->line, detail, near.c_str());
+    snprintf(message, sizeof message, "line %d: syntax error near %s", parser->line, near.c_str());
     parser->error = new std::string(message);
   }
 
   void inline error(Parser* parser, int pos, int cla) {
-    setError(parser, pos, "syntax error");
+    setError(parser, pos);
   }
 
   void inline numberOpen(Parser* parser, int pos, int cla) {
@@ -523,10 +524,11 @@ namespace ijson {
   }
 
   void arrayClose(Parser* parser, int pos, int cla) {
-    if (parser->frame->needsValue) return setError(parser, pos, "expected value after comma, got ]");
+    if (parser->frame->arrayPos == -1) return setError(parser, pos);
+    if (parser->frame->needsValue) return setError(parser, pos);
     Local<Value> val = *parser->frame->value;
     parser->frame = parser->frame->prev;
-    if (parser->frame == NULL) return setError(parser, pos, "too many ]");
+    if (parser->frame == NULL) return setError(parser, pos);
     parser->frame->setValue(val);
     parser->state = AFTER_VALUE;
   }
@@ -543,11 +545,11 @@ namespace ijson {
   }
 
   void objectClose(Parser* parser, int pos, int cla) {
-    if (parser->frame->arrayPos >= 0) return setError(parser, pos, "expected ] or comma, got }");
-    if (parser->frame->needsValue) return setError(parser, pos, "expected key after comma, got }");
+    if (parser->frame->arrayPos >= 0) return setError(parser, pos);
+    if (parser->frame->needsValue) return setError(parser, pos);
     Local<Value> val = *parser->frame->value;
     parser->frame = parser->frame->prev;
-    if (parser->frame == NULL) return setError(parser, pos, "too many }");
+    if (parser->frame == NULL) return setError(parser, pos);
     parser->frame->setValue(val);
     parser->state = AFTER_VALUE;
   }
@@ -801,7 +803,7 @@ namespace ijson {
     Isolate* isolate = parser->isolate;
     if (args.Length() != 0) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "bad arg count")));
 
-    if (parser->frame->prev) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "Unexpected end of input text")));
+    if (parser->frame->prev) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "Unexpected end of input")));
     
     // number values are only closed when we read past them. So we parse an extra space if still inside a number.
     if (parser->state == INSIDE_NUMBER || parser->state == INSIDE_DOUBLE || parser->state == INSIDE_EXP) {
@@ -809,6 +811,7 @@ namespace ijson {
       parse(parser, (char*)" ", 1);
       parser->frame->save(isolate);
     }
+    if (parser->state != AFTER_VALUE) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "Unexpected end of input")));
     Local<Array> arr = Local<Array>::Cast(uni::HandleToLocal(uni::Deref(isolate, parser->frame->pvalue)));
     uni::Dispose(isolate, parser->frame->pvalue);
     if (arr->Length() > 1) {

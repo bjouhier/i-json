@@ -2,52 +2,186 @@ QUnit.module('i-json');
 
 var ijson = require('..');
 
-function parse(data, options) {
+function testPass(prefix, parseOk) {
+	function parseError(str) {
+		try {
+			return parseOk(str);
+		} catch (ex) {
+			return ex.message;
+		}
+	}
+
+	function testStrict(str) {
+		strictEqual(parseOk(str), JSON.parse(str));
+	}
+
+	function testDeep(str) {
+		deepEqual(parseOk(str), JSON.parse(str));
+	}
+
+	test(prefix + "basic values", 14, function() {
+		testStrict('null');
+		testStrict('true');
+		testStrict('false');
+		testStrict('"null"');
+		testStrict('""');
+		testStrict('5');
+		testStrict('-5');
+		testStrict('3.14');
+		testStrict('-3.14');
+		testStrict('6.02e23');
+		testStrict('-6.02e+23');
+		testStrict('6.62E-34');
+		testDeep('{}');
+		testDeep('[]');
+	});
+
+	test(prefix + "complex values", 1, function() {
+		testDeep('{"a":{"b":{"c":1,"d":2},"e":[3,4],"f":[true,false,null]}}');
+	});
+
+	test(prefix + "extra spaces", 4, function() {
+		testStrict(' null ');
+		testStrict(' 5 ');
+		testStrict(' "" ');
+		testDeep(' { "a": {"b" :{"c":1,"d":2 },"e" : [ 3 ,4 ],"f":[ true , false, null]}}');
+	});
+
+	test(prefix + "escape sequences", 9, function() {
+		testStrict('"\\n"');
+		testStrict('"\\r"');
+		testStrict('"\\t"');
+		testStrict('"\\""');
+		testStrict('"\\\\"');
+		testStrict('"\\u0040"');
+		testStrict('"\\u00e9"');
+		testStrict('"\\u20AC"');
+		testStrict('"a\\r\\nbc\\td\\"\\\\e\\u20ACf"');
+	});
+
+	test(prefix + "errors", 21, function() {
+		function trim(s) {
+			return /^incremental/.test(prefix) ? s.substring(0, s.length - 1) : s
+		}
+		strictEqual(parseError(''), "Unexpected end of input");
+		strictEqual(parseError('  '), "Unexpected end of input");
+		strictEqual(parseError('a'), "line 1: syntax error near a");
+		strictEqual(parseError('\na'), "line 2: syntax error near a");
+		strictEqual(parseError('""a'), "line 1: syntax error near a");
+		strictEqual(parseError('"a'), "Unexpected end of input");
+		strictEqual(parseError('"a\nb"'), "line 1: syntax error near ");
+		strictEqual(parseError('}'), "line 1: syntax error near }");
+		strictEqual(parseError(']'), "line 1: syntax error near ]");
+		strictEqual(parseError('{a}'), trim("line 1: syntax error near a}"));
+		strictEqual(parseError('{"a}'), "Unexpected end of input");
+		strictEqual(parseError('{"a",}'), trim("line 1: syntax error near ,}"));
+		strictEqual(parseError('{"a"b}'), trim("line 1: syntax error near b}"));
+		strictEqual(parseError('{"a":b}'), trim("line 1: syntax error near b}"));
+		strictEqual(parseError('{"a":"b",}'), "line 1: syntax error near }");
+		strictEqual(parseError('{"a":"b"]'), "line 1: syntax error near ]");
+		strictEqual(parseError('[a]'), trim("line 1: syntax error near a]"));
+		strictEqual(parseError('["a"'), "Unexpected end of input");
+		strictEqual(parseError('["a",'), "Unexpected end of input");
+		strictEqual(parseError('["a",]'), "line 1: syntax error near ]");
+		strictEqual(parseError('["a"}'), "line 1: syntax error near }");
+	});
+}
+
+testPass("full: ", function parseOk(data) {
 	var parser = ijson.createParser();
 	parser.update(data);
 	return parser.result();
-}
-
-test("basic values", 15, function() {
-	strictEqual(parse('null'), null);
-	strictEqual(parse('true'), true);
-	strictEqual(parse('false'), false);
-	strictEqual(parse('"null"'), "null");
-	strictEqual(parse('""'), "");
-	strictEqual(parse(''), undefined);
-	strictEqual(parse('5'), 5);
-	strictEqual(parse('-5'), -5);
-	strictEqual(parse('3.14'), 3.14);
-	strictEqual(parse('-3.14'), -3.14);
-	strictEqual(parse('6.02e23'), 6.02e23);
-	strictEqual(parse('-6.02e+23'), -6.02e23);
-	strictEqual(parse('6.62E-34'), 6.62e-34);
-	deepEqual(parse('{}'), {});
-	deepEqual(parse('[]'), []);
 });
 
-test("complex values", 1, function() {
-	deepEqual(parse('{"a":{"b":{"c":1,"d":2},"e":[3,4],"f":[true,false,null]}}'), 
-		{"a":{"b":{"c":1,"d":2},"e":[3,4],"f":[true,false,null]}});
+testPass("incremental: ", function parseOk(data) {
+	var parser = ijson.createParser();
+	for (var i = 0; i < data.length; i++) parser.update(data[i]);
+	return parser.result();
 });
 
-test("extra spaces", 5, function() {
-	strictEqual(parse(' null '), null);
-	strictEqual(parse(' 5 '), 5);
-	strictEqual(parse(' "" '), "");
-	strictEqual(parse('  '), undefined);
-	deepEqual(parse(' { "a": {"b" :{"c":1,"d":2 },"e" : [ 3 ,4 ],"f":[ true , false, null]}}'), 
-		{"a":{"b":{"c":1,"d":2},"e":[3,4],"f":[true,false,null]}});
+testPass("full callback: ", function parseOk(data) {
+	var r;
+	var parser = ijson.createParser(function(result) {
+		r = result
+	}, 0);
+	parser.update(data);
+	parser.result(); // for numbers
+	return r;
 });
 
-test("escape sequences", 9, function() {
-	strictEqual(parse('"\\n"'), "\n");
-	strictEqual(parse('"\\r"'), "\r");
-	strictEqual(parse('"\\t"'), "\t");
-	strictEqual(parse('"\\""'), "\"");
-	strictEqual(parse('"\\\\"'), "\\");
-	strictEqual(parse('"\\u0040"'), "@");
-	strictEqual(parse('"\\u00e9"'), "é");
-	strictEqual(parse('"\\u20AC"'), "€");
-	strictEqual(parse('"a\\r\\nbc\\td\\"\\\\e\\u20ACf"'), "a\r\nbc\td\"\\e€f");
+testPass("incremental callback: ", function parseOk(data) {
+	var r;
+	var parser = ijson.createParser(function(result) {
+		r = result
+	}, 0);
+	for (var i = 0; i < data.length; i++) parser.update(data[i]);
+	parser.result(); // for numbers
+	return r;
+});
+
+test("callback depth 0", 3, function() {
+	var results = [];
+	var parser = ijson.createParser(function(result, path) {
+		results.push(path.join('/') + ': ' + JSON.stringify(result));
+		return result;
+	}, 0);
+	parser.update('{"data": [2, 3, [true, false]], "message": "hello" }');
+	strictEqual(results.length, 1);
+	strictEqual(results[0], ': {"data":[2,3,[true,false]],"message":"hello"}');
+	strictEqual(JSON.stringify(parser.result()), '{"data":[2,3,[true,false]],"message":"hello"}');
+});
+
+test("callback depth 2", 8, function() {
+	var results = [];
+	var parser = ijson.createParser(function(result, path) {
+		results.push(path.join('/') + ': ' + JSON.stringify(result));
+		return result;
+	}, 2);
+	parser.update('{"data": [2, 3, [true, false]], "message": "hello" }');
+	strictEqual(results.length, 6);
+	strictEqual(results[0], 'data/0: 2');
+	strictEqual(results[1], 'data/1: 3');
+	strictEqual(results[2], 'data/2: [true,false]');
+	strictEqual(results[3], 'data: [2,3,[true,false]]');
+	strictEqual(results[4], 'message: "hello"');
+	strictEqual(results[5], ': {"data":[2,3,[true,false]],"message":"hello"}');
+	strictEqual(JSON.stringify(parser.result()), '{"data":[2,3,[true,false]],"message":"hello"}');
+
+});
+
+test("callback depth unlimited", 10, function() {
+	var results = [];
+	var parser = ijson.createParser(function(result, path) {
+		results.push(path.join('/') + ': ' + JSON.stringify(result));
+		return result;
+	});
+	parser.update('{"data": [2, 3, [true, false]], "message": "hello" }');
+	strictEqual(results.length, 8);
+	strictEqual(results[0], 'data/0: 2');
+	strictEqual(results[1], 'data/1: 3');
+	strictEqual(results[2], 'data/2/0: true');
+	strictEqual(results[3], 'data/2/1: false');
+	strictEqual(results[4], 'data/2: [true,false]');
+	strictEqual(results[5], 'data: [2,3,[true,false]]');
+	strictEqual(results[6], 'message: "hello"');
+	strictEqual(results[7], ': {"data":[2,3,[true,false]],"message":"hello"}');
+	strictEqual(JSON.stringify(parser.result()), '{"data":[2,3,[true,false]],"message":"hello"}');
+});
+
+test("callback no return", 10, function() {
+	var results = [];
+	var parser = ijson.createParser(function(result, path) {
+		results.push(path.join('/') + ': ' + JSON.stringify(result));
+	});
+	parser.update('{"data": [2, 3, [true, false]], "message": "hello" }');
+	strictEqual(results.length, 8);
+	strictEqual(results[0], 'data/0: 2');
+	strictEqual(results[1], 'data/1: 3');
+	strictEqual(results[2], 'data/2/0: true');
+	strictEqual(results[3], 'data/2/1: false');
+	strictEqual(results[4], 'data/2: []');
+	strictEqual(results[5], 'data: []');
+	strictEqual(results[6], 'message: "hello"');
+	strictEqual(results[7], ': {}');
+	strictEqual(JSON.stringify(parser.result()), undefined);
 });
