@@ -57,7 +57,7 @@ var parser = ijson.createParser(function(value, path) {
 }, 2);
 
 parser.update(new Buffer('{"data": [2, 3, [true, false]], "message": "hello" }'));
-console.log("result=" + parser.result());
+console.log("result=" + JSON.stringify(parser.result()));
 ```
 Output:
 ```
