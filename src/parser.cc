@@ -321,12 +321,6 @@ namespace ijson {
     setError(parser, pos, "syntax error");
   }
 
-  void inline escapeOpen(Parser* parser, int pos, int cla) {
-    parser->keep.insert(parser->keep.end(), parser->data + parser->beg, parser->data + pos);
-    parser->beg = -1;
-    parser->state = AFTER_ESCAPE;
-  }
-
   void inline numberOpen(Parser* parser, int pos, int cla) {
     parser->isDouble = false;
     parser->beg = pos;
@@ -389,6 +383,12 @@ namespace ijson {
       parser->state = AFTER_VALUE;
     }
     parser->keep.clear();
+  }
+
+  void inline escapeOpen(Parser* parser, int pos, int cla) {
+    parser->keep.insert(parser->keep.end(), parser->data + parser->beg, parser->data + pos);
+    parser->beg = -1;
+    parser->state = AFTER_ESCAPE;
   }
 
   void inline escapeR(Parser* parser, int pos, int cla) {
