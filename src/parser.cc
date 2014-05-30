@@ -169,6 +169,24 @@ namespace ijson {
         uni::Deref(isolate, this->parser->callback), 2, argv);
       return uni::HandleToLocal(res);
     }
+
+    void restore(Isolate* isolate) {
+      this->value = new Local<Value>();
+      *this->value = uni::HandleToLocal(uni::Deref(isolate, this->pvalue));
+      uni::Dispose(isolate, this->pvalue);
+      this->key = new Local<Value>();
+      *this->key = uni::HandleToLocal(uni::Deref(isolate, this->pkey));
+      uni::Dispose(isolate, this->pkey);
+    }
+
+    void save(Isolate* isolate) {
+      uni::Reset(isolate, this->pvalue, *this->value);
+      delete this->value;
+      this->value = NULL;
+      uni::Reset(isolate, this->pkey, *this->key);
+      delete this->key;
+      this->key = NULL;
+    }
   };
 
   int lastClass = 0;
@@ -716,6 +734,8 @@ namespace ijson {
   int dummy3 = initStates();
 
   int parse(Parser* parser, char* buf, int len) {
+    parser->data = buf;
+    parser->len = len;
     int pos = 0;
     while (pos < len && !parser->error) {
       int ch = buf[pos];
@@ -740,8 +760,6 @@ namespace ijson {
     Local<Object> buf = Local<Object>::Cast(args[0]);
     char* data = Buffer::Data(buf);
     int len = (int)Buffer::Length(buf);
-    parser->data = data;
-    parser->len = len;
 
     int cacheLen = len / 16;
     if (cacheLen < 2) cacheLen = 2;
@@ -750,25 +768,12 @@ namespace ijson {
     parser->keysCache = new Cache(cacheLen);
     parser->valuesCache = new Cache(cacheLen);
 
-    for (Frame* f = parser->frame; f; f = f->prev) {
-      f->value = new Local<Value>();
-      *f->value = uni::HandleToLocal(uni::Deref(isolate, f->pvalue));
-      uni::Dispose(isolate, f->pvalue);
-      f->key = new Local<Value>();
-      *f->key = uni::HandleToLocal(uni::Deref(isolate, f->pkey));
-      uni::Dispose(isolate, f->pkey);
-    }
+    for (Frame* f = parser->frame; f; f = f->prev) f->restore(isolate);
 
     int pos = parse(parser, data, len);
 
-    for (Frame* f = parser->frame; f; f = f->prev) {
-      uni::Reset(isolate, f->pvalue, *f->value);
-      delete f->value;
-      f->value = NULL;
-      uni::Reset(isolate, f->pkey, *f->key);
-      delete f->key;
-      f->key = NULL;
-    }
+    for (Frame* f = parser->frame; f; f = f->prev) f->save(isolate);
+
     if (parser->frame) {
       delete parser->frame->next;
       parser->frame->next = NULL;
@@ -797,6 +802,13 @@ namespace ijson {
     if (args.Length() != 0) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "bad arg count")));
 
     if (parser->frame->prev) UNI_THROW(isolate, Exception::Error(uni::NewString(isolate, "Unexpected end of input text")));
+    
+    // number values are only closed when we read past them. So we parse an extra space if still inside a number.
+    if (parser->state == INSIDE_NUMBER || parser->state == INSIDE_DOUBLE || parser->state == INSIDE_EXP) {
+      parser->frame->restore(isolate);
+      parse(parser, (char*)" ", 1);
+      parser->frame->save(isolate);
+    }
     Local<Array> arr = Local<Array>::Cast(uni::HandleToLocal(uni::Deref(isolate, parser->frame->pvalue)));
     uni::Dispose(isolate, parser->frame->pvalue);
     if (arr->Length() > 1) {
