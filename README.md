@@ -49,7 +49,7 @@ The callback also allows you transform the value. If you return `undefined` from
 ## Example
 
 ``` javascript
-var ijson = require('ijson');
+var ijson = require('i-json');
 
 var parser = ijson.createParser(function(value, path) {
 	console.log(path.length + ": " + path.join('/') + ": " + JSON.stringify(value));
