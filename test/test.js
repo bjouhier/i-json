@@ -19,7 +19,7 @@ function testPass(prefix, parseOk) {
 		deepEqual(parseOk(str), JSON.parse(str));
 	}
 
-	test(prefix + "basic values", 14, function() {
+	test(prefix + "basic values", 16, function() {
 		testStrict('null');
 		testStrict('true');
 		testStrict('false');
@@ -32,6 +32,8 @@ function testPass(prefix, parseOk) {
 		testStrict('6.02e23');
 		testStrict('-6.02e+23');
 		testStrict('6.62E-34');
+		testStrict('9007199254740992');
+		testStrict('-9007199254740992');
 		testDeep('{}');
 		testDeep('[]');
 	});

@@ -66,7 +66,6 @@ namespace ijson {
 
     int beg;
     int line;
-    bool isDouble;
     bool needsKey;
     uint unicode;
     std::string* error;
@@ -323,18 +322,15 @@ namespace ijson {
   }
 
   void inline numberOpen(Parser* parser, int pos, int cla) {
-    parser->isDouble = false;
     parser->beg = pos;
     parser->state = INSIDE_NUMBER;
   }
 
   void inline doubleOpen(Parser* parser, int pos, int cla) {
-    parser->isDouble = true;
     parser->state = INSIDE_DOUBLE;
   }
 
   void inline expOpen(Parser* parser, int pos, int cla) {
-    parser->isDouble = true;
     parser->state = INSIDE_EXP;
   }
 
@@ -346,11 +342,7 @@ namespace ijson {
       parser->keep.insert(parser->keep.end(), p, parser->data + pos + 1); // append stop byte
       p = &parser->keep[0];
     }
-    if (parser->isDouble) {
-      parser->frame->setValue(uni::NewNumber(parser->isolate, atof(p)));
-    } else {
-      parser->frame->setValue(uni::NewInteger(parser->isolate, atoi(p)));      
-    }
+    parser->frame->setValue(uni::NewNumber(parser->isolate, atof(p)));
     parser->keep.clear();
     parseFn fn = AFTER_VALUE[cla];
     if (fn) fn(parser, pos, cla);
@@ -860,7 +852,6 @@ namespace ijson {
     this->isolate = isolate;
     this->beg = -1;
     this->line = 1;
-    this->isDouble = false;
     this->needsKey = false;
     this->error = NULL;
     this->state = BEFORE_VALUE;
