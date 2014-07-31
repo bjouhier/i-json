@@ -229,12 +229,13 @@ namespace ijson {
     l_ = makeClass("l"),
     s_ = makeClass("s"),
     n_ = makeClass("n"),
+    b_ = makeClass("b"),
     PLUS = makeClass("+"),
     MINUS = makeClass("-"),
     DIGIT = makeClass("0123456789"),
     DOT = makeClass("."),
     E_ = makeClass("E"),
-    HEX_REMAIN = makeClass("ABCDFbcd");
+    HEX_REMAIN = makeClass("ABCDFcd");
 
 
   int init2() {
@@ -272,14 +273,15 @@ namespace ijson {
   }
 
   State makeHexState(parseFn fn, parseFn def) {
-    Transition* transitions = new Transition[7];
+    Transition* transitions = new Transition[8];
     fillTransition(transitions + 0, DIGIT, fn);
     fillTransition(transitions + 1, a_, fn);
-    fillTransition(transitions + 2, e_, fn);
-    fillTransition(transitions + 3, f_, fn);
-    fillTransition(transitions + 4, E_, fn);
-    fillTransition(transitions + 5, HEX_REMAIN, fn);
-    fillTransition(transitions + 6, -1, NULL);
+    fillTransition(transitions + 2, b_, fn);
+    fillTransition(transitions + 3, e_, fn);
+    fillTransition(transitions + 4, f_, fn);
+    fillTransition(transitions + 5, E_, fn);
+    fillTransition(transitions + 6, HEX_REMAIN, fn);
+    fillTransition(transitions + 7, -1, NULL);
     return makeState(transitions, def);
   }
 
@@ -382,6 +384,18 @@ namespace ijson {
     parser->keep.insert(parser->keep.end(), parser->data + parser->beg, parser->data + pos);
     parser->beg = -1;
     parser->state = AFTER_ESCAPE;
+  }
+
+  void inline escapeB(Parser* parser, int pos, int cla) {
+    parser->keep.push_back('\b');
+    parser->beg = pos + 1;
+    parser->state = INSIDE_QUOTES;
+  }
+
+  void inline escapeF(Parser* parser, int pos, int cla) {
+    parser->keep.push_back('\f');
+    parser->beg = pos + 1;
+    parser->state = INSIDE_QUOTES;
   }
 
   void inline escapeR(Parser* parser, int pos, int cla) {
@@ -620,6 +634,8 @@ namespace ijson {
     INSIDE_QUOTES = makeState(INSIDE_QUOTES_TRANSITIONS, NULL);
 
     Transition AFTER_ESCAPE_TRANSITIONS[] = {
+      { b_, escapeB },
+      { f_, escapeF },
       { n_, escapeN },
       { r_, escapeR },
       { t_, escapeT },

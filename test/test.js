@@ -49,7 +49,9 @@ function testPass(prefix, parseOk) {
 		testDeep(' { "a": {"b" :{"c":1,"d":2 },"e" : [ 3 ,4 ],"f":[ true , false, null]}}');
 	});
 
-	test(prefix + "escape sequences", 9, function() {
+	test(prefix + "escape sequences", 11, function() {
+		testStrict('"\\b"');
+		testStrict('"\\f"');
 		testStrict('"\\n"');
 		testStrict('"\\r"');
 		testStrict('"\\t"');

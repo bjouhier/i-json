@@ -92,5 +92,5 @@ for (var pass = 1; pass <= 100; pass++) {
 	} catch (ex) {
 		//console.log("skipping clarinet test: " + ex.message);
 	}
-	//console.log(process.memoryUsage());
+	console.log(process.memoryUsage());
 }
