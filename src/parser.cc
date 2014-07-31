@@ -748,7 +748,7 @@ namespace ijson {
     parser->len = len;
     int pos = 0;
     while (pos < len && !parser->error) {
-      int ch = buf[pos];
+      int ch = buf[pos] & 0xff;
       int cla = classes[ch];
       parseFn fn = parser->state[cla];
       if (fn != NULL) fn(parser, pos, cla);

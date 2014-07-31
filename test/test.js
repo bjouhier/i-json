@@ -19,12 +19,13 @@ function testPass(prefix, parseOk) {
 		deepEqual(parseOk(str), JSON.parse(str));
 	}
 
-	test(prefix + "basic values", 16, function() {
+	test(prefix + "basic values", 17, function() {
 		testStrict('null');
 		testStrict('true');
 		testStrict('false');
 		testStrict('"null"');
 		testStrict('""');
+		testStrict('"‘"');
 		testStrict('5');
 		testStrict('-5');
 		testStrict('3.14');
