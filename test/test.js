@@ -196,3 +196,21 @@ test("callback no return", 10, function() {
 	strictEqual(results[7], ': {}');
 	strictEqual(JSON.stringify(parser.result()), undefined);
 });
+
+test("escaped forward slash", 10, function() {
+	var results = [];
+	var parser = ijson.createParser(function(result, path) {
+		results.push(path.join('/') + ': ' + JSON.stringify(result));
+	});
+	parser.update('{"data": [2, 3, [true, false]], "message": "hello\/goodbye" }');
+	strictEqual(results.length, 8);
+	strictEqual(results[0], 'data/0: 2');
+	strictEqual(results[1], 'data/1: 3');
+	strictEqual(results[2], 'data/2/0: true');
+	strictEqual(results[3], 'data/2/1: false');
+	strictEqual(results[4], 'data/2: []');
+	strictEqual(results[5], 'data: []');
+	strictEqual(results[6], 'message: "hello/goodbye"');
+	strictEqual(results[7], ': {}');
+	strictEqual(JSON.stringify(parser.result()), undefined);
+});
