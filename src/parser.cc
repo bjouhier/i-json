@@ -219,6 +219,7 @@ namespace ijson {
     COLON = makeClass(":"),
     DQUOTE = makeClass("\""),
     BSLASH = makeClass("\\"),
+    FSLASH = makeClass("/"),
     SPACE = makeClass(" \t\r"),
     NL = makeClass("\n"),
     t_ = makeClass("t"),
@@ -425,6 +426,12 @@ namespace ijson {
 
   void inline escapeBSLASH(Parser* parser, int pos, int cla) {
     parser->keep.push_back('\\');
+    parser->beg = pos + 1;
+    parser->state = INSIDE_QUOTES;
+  }
+
+  void inline escapeFSLASH(Parser* parser, int pos, int cla) {
+    parser->keep.push_back('/');
     parser->beg = pos + 1;
     parser->state = INSIDE_QUOTES;
   }
@@ -642,6 +649,7 @@ namespace ijson {
       { t_, escapeT },
       { DQUOTE, escapeDQUOTE },
       { BSLASH, escapeBSLASH },
+      { FSLASH, escapeFSLASH },
       { u_, u_xxxx }, 
       { -1, NULL }
     };
