@@ -43,11 +43,12 @@ function testPass(prefix, parseOk) {
 		testDeep('{"a":{"b":{"c":1,"d":2},"e":[3,4],"f":[true,false,null]}}');
 	});
 
-	test(prefix + "extra spaces", 4, function() {
+	test(prefix + "extra spaces", 5, function() {
 		testStrict(' null ');
 		testStrict(' 5 ');
 		testStrict(' "" ');
 		testDeep(' { "a": {"b" :{"c":1,"d":2 },"e" : [ 3 ,4 ],"f":[ true , false, null]}}');
+		testDeep('{\n"value": 3\n}'); // issue #9
 	});
 
 	test(prefix + "escape sequences", 11, function() {

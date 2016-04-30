@@ -349,8 +349,8 @@ namespace ijson {
     parser->frame->setValue(uni::NewNumber(parser->isolate, atof(p)));
     parser->keep.clear();
     parseFn fn = AFTER_VALUE[cla];
+    parser->state = AFTER_VALUE;
     if (fn) fn(parser, pos, cla);
-    else parser->state = AFTER_VALUE;
   }
 
   void inline stringOpen(Parser* parser, int pos, int cla) {
