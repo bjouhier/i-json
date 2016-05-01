@@ -1,7 +1,7 @@
 {
   "name": "i-json",
   "description": "Fast incremental JSON parser",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "homepage": "http://github.com/bjouhier/i-json",
   "repository": {
     "type": "git",
