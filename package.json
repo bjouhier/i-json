@@ -16,5 +16,9 @@
   "main": "index.js",
   "bugs": {
     "url": "https://github.com/Sage/i-json/issues"
+  },
+  "dependencies": {
+    "node-qunit": "^1.0.0",
+    "qunit": "^2.6.1"
   }
 }
