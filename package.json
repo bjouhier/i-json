@@ -17,8 +17,12 @@
   "bugs": {
     "url": "https://github.com/Sage/i-json/issues"
   },
-  "dependencies": {
-    "node-qunit": "^1.0.0",
-    "qunit": "^2.6.1"
+  "devDependencies": {
+    "chai": "^4.2.0",
+    "mocha": "^6.2.0",
+    "prettier": "^1.18.2"
+  },
+  "scripts": {
+    "test": "mocha --exit test"
   }
 }
